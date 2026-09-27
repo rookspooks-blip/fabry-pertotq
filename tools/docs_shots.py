@@ -129,7 +129,74 @@ def main():
     win.recalc()
     win.write_rings(os.path.join(OUT, "doublet_merged.png"), side=520)
 
-    # 6. Тёмная тема целиком (для методички по визуальной части)
+    # 6. Режим лабораторной работы: журнал с серией «кольца» (вариант 0 — его нет среди выдаваемых)
+    from fabry_perot.lab import Variant
+    from fabry_perot import physics as ph
+    import random
+    win.resize(1600, 1000)
+    win.student = ("Иванов И. И.", "СМ1-21")
+    win.realism_switch.setChecked(True)
+    win.journal.clear_all()
+    v = Variant(0)
+    win.set_lab(v)
+    for key, value in (("d", v.d_rings), ("f", v.f_rings), ("screen", 10.0), ("R", 0.9), ("dd", 0.0)):
+        win.params[key].set(value)
+        win.shown[key] = value
+    win.second.setChecked(False)
+    win.recalc()
+    win.journal.select("rings")
+    rng = random.Random("example-rings")
+    radii = ph.ring_radii(v.lam * 1e-9, v.d_rings * 1e-3, 1.0, v.f_rings * 1e-3, 0.010)[:6] * 1e3
+    for r in radii:
+        win.ring_view.picked.emit(round(float(r) + rng.gauss(0, 0.006), 3), 0.8)
+    win.ring_view.set_hover(float(radii[3]))
+    win.plot_r.set_hover(float(radii[3]))
+    QtWidgets.QApplication.processEvents()
+    wait(200)
+    image = win.grab().toImage()
+    marks = []
+    r = rect_in(win, win.lab_badge)
+    marks.append((1, QPointF(r.left() - 16, r.center().y())))
+    r = rect_in(win, win.params["lam"].secret)
+    marks.append((2, QPointF(r.left() - 18, r.center().y())))
+    r = rect_in(win, win.realism_switch)
+    marks.append((3, QPointF(r.left() + 260, r.center().y())))
+    r = rect_in(win, win.journal.combo)
+    marks.append((4, QPointF(r.left() - 16, r.center().y())))
+    r = rect_in(win, win.journal.table)
+    marks.append((5, QPointF(r.right() - 22, r.top() + 22)))
+    r = rect_in(win, win.journal.record_button)
+    marks.append((6, QPointF(r.left() - 16, r.center().y())))
+    r = rect_in(win, win.journal.plot)
+    marks.append((7, QPointF(r.right() - 22, r.top() + 22)))
+    r = rect_in(win, win.journal.result)
+    marks.append((8, QPointF(r.right() - 20, r.top() - 2)))
+    callouts(image, marks)
+    image.save(os.path.join(OUT, "window_lab.png"))
+    win.journal.grab().save(os.path.join(OUT, "journal.png"))
+
+    # 7. Лупа на кольцах
+    win.ring_view.scale, win.ring_view.center = 6.0, (float(radii[4]) * 1e-3, 0.0)
+    win.ring_view.image = None
+    win.ring_view.set_hover(float(radii[4]))
+    QtWidgets.QApplication.processEvents()
+    win.ring_view.parentWidget().grab().save(os.path.join(OUT, "rings_zoom.png"))
+    win.ring_view.scale, win.ring_view.center = 1.0, (0.0, 0.0)
+    win.ring_view.image = None
+    win.set_lab(None)
+
+    # 8. Две линии: суммарная кривая и провал между ними
+    win.apply_preset(dict(lam=589.0, d=1.0, dd=0.0, R=0.9, A=0.0, n=1.0, f=200.0, screen=10.0), 6.2)
+    settle(win)
+    win.plot_r.zoom = (0.30, 0.42)
+    win.plot_r.refresh()
+    win.plot_r.set_hover(3.715)
+    QtWidgets.QApplication.processEvents()
+    win.plot_r.grab().save(os.path.join(OUT, "profile_sum.png"))
+    win.plot_r.zoom = None
+    win.realism_switch.setChecked(False)
+
+    # 9. Тёмная тема целиком (для методички по визуальной части)
     THEME.set("dark")
     win.apply_theme()
     win.resize(1600, 960)

@@ -13,7 +13,8 @@
        <code ref="physics.airy"/>  — настоящий текст функции из программы
                                      (атрибут nodoc — без строки документации,
                                      lines="3-10" — только эти строки);
-       <fig name="scheme"/>        — рисунок SVG из tools/docs_figures.py.
+       <fig name="scheme"/>        — рисунок SVG из tools/docs_figures.py;
+       <py name="answers_hidden"/> — таблица или текст, посчитанные tools/docs_tables.py.
      Формулы переводятся в MathML — его Chromium рисует сам, без интернета.
      Код берётся прямо из fabry_perot/*.py, поэтому методичка не расходится с программой.
   3. Печатает страницы в PDF через Chromium (Playwright).
@@ -42,6 +43,7 @@ from pygments.formatters import HtmlFormatter  # noqa: E402
 from pygments.lexers import PythonLexer  # noqa: E402
 
 import docs_figures  # noqa: E402
+import docs_tables  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -127,6 +129,8 @@ def figure(match):
 
 def render_template(path):
     text = open(path, encoding="utf-8").read()
+    # 0. Готовые блоки, посчитанные программой (ответы, образец обработки): внутри них тоже бывают формулы
+    text = re.sub(r'<py\s+name="([^"]+)"\s*/>', lambda m: docs_tables.TABLES[m.group(1)](), text)
     protected = []
 
     def protect(fragment):
@@ -141,7 +145,8 @@ def render_template(path):
     text = re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], text)
     style = open(os.path.join(SRC, "style.css"), encoding="utf-8").read()
     style += HtmlFormatter(style="friendly").get_style_defs("figure.code pre")
-    return text.replace("</head>", f"<style>{style}</style></head>", 1)
+    # общий стиль — в начало: собственные стили страницы (например, альбомная ориентация) его перекрывают
+    return text.replace("<head>", f"<head><style>{style}</style>", 1)
 
 
 def chromium_path():
@@ -163,6 +168,7 @@ def to_pdf(pages):
             page.goto("file://" + html_path)
             page.wait_for_load_state("networkidle")
             page.pdf(path=pdf_path, format="A4", print_background=True, display_header_footer=True,
+                     prefer_css_page_size=True,
                      header_template="<div></div>", footer_template=footer,
                      margin={"top": "18mm", "bottom": "18mm", "left": "20mm", "right": "16mm"})
             print("  →", os.path.relpath(pdf_path, ROOT))

@@ -49,6 +49,17 @@ TILES = [("Расстояние между пиками Δλ", "Между пи�
          ("Резкость Δλ / w", "Резкость Δλ / w"), ("Разрешающая способность", "Разрешающая сила")]
 
 
+class StepSpin(QtWidgets.QDoubleSpinBox):
+    """Поле ввода, которое помнит, что число изменили шагом (стрелки ↑ ↓, колёсико), а не набрали."""
+
+    stepping = False
+
+    def stepBy(self, steps):
+        self.stepping = True
+        super().stepBy(steps)
+        self.stepping = False
+
+
 class ParamRow:
     """Строка параметра: название, пределы, ползунок и поле ввода.
 
@@ -72,7 +83,7 @@ class ParamRow:
         limits.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(0, self.STEPS)
-        self.spin = QtWidgets.QDoubleSpinBox()
+        self.spin = StepSpin()
         self.spin.setRange(self.lo, self.hi)
         self.spin.setDecimals(decimals)
         self.spin.setSingleStep(step)
@@ -94,6 +105,15 @@ class ParamRow:
         grid.addWidget(limits, 2 * row, 1)
         grid.addWidget(self.slider, 2 * row + 1, 0)
         grid.addWidget(self.spin, 2 * row + 1, 1, Qt.AlignmentFlag.AlignRight)
+        # в лабораторной работе значение может быть скрыто — вместо поля надпись «скрыто»
+        self.secret = QtWidgets.QLabel("скрыто")
+        self.secret.setObjectName("secret")
+        self.secret.setFixedWidth(112)
+        self.secret.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.secret.setToolTip("Эту величину нужно определить в лабораторной работе")
+        self.secret.hide()
+        grid.addWidget(self.secret, 2 * row + 1, 1, Qt.AlignmentFlag.AlignRight)
+        self.hidden = False
         self.slider.valueChanged.connect(self.slider_moved)
         self.spin.valueChanged.connect(self.spin_changed)
         self.set(value)
@@ -132,6 +152,8 @@ class ParamRow:
             smooth = False                         # ведут ползунок — меняем сразу
         elif self.forced is not None:
             smooth = self.forced
+        elif self.spin.stepping:
+            smooth = "fast"                        # шаг стрелкой или колёсиком — короткий переход
         else:
             smooth = True                          # ввели число — плавный переход
         self.on_change(self.key, smooth)
@@ -158,3 +180,10 @@ class ParamRow:
 
     def value(self):
         return self.spin.value()
+
+    def set_hidden(self, hidden):
+        """Скрыть значение (лабораторная работа): поле и ползунок заменяются надписью «скрыто»."""
+        self.hidden = hidden
+        self.spin.setVisible(not hidden)
+        self.secret.setVisible(hidden)
+        self.slider.setVisible(not hidden)          # положение ползунка тоже ничего не подсказывает

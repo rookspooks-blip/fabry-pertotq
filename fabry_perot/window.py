@@ -6,8 +6,10 @@ import numpy as np
 
 from . import APP_TITLE, __version__
 from .fmt import length, num, pick_unit, plain, rel_error, short, with_unit, div
-from .physics import (C, airy, airy_range, curve_samples, measure_curve, measure_rings, phase,
-                      ring_radii, seamless_shift, theory)
+from .journal import Journal
+from .lab import CODES, Variant
+from .physics import (C, RAYLEIGH, airy_blurred, blur_halfwidth, blurred_range, curve_samples, dip_ratio,
+                      measure_curve, measure_rings, phase, ring_radii, seamless_shift, theory)
 from .params import LINE2, PARAMS, PRESETS, TILES, ParamRow
 from .qt import QAction, QBrush, QColor, QImage, QPainter, QPixmap, Qt, QtCore, QtGui, QtWidgets
 from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_palette,
@@ -15,6 +17,9 @@ from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_p
 from .widgets import Curve, Plot, RingView, ToggleSwitch, card_title, make_card, polish
 
 TWEEN_MS = 850         # сколько длится плавный переход к новому значению, мс
+FAST_MS = 150          # короткий переход — шаг стрелкой или колёсиком в поле ввода
+# реалистичный режим вне лабораторной: неплоскостность λ/150, ширина линии 0,05 пм, шум 0,4 %
+DEFAULT_REALISM = (1 / 150, 0.05e-12, 0.004)
 
 
 def ease(t):
@@ -35,7 +40,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self.curve = (np.zeros(0), np.zeros(0))    # последний график T(λ) (для CSV)
         self.radii = (np.zeros(0), np.zeros(0))    # радиусы колец: по картинке и по формуле
         self.shown = {}                            # значения, которые сейчас на картинке
-        self.tweens = {}                           # плавные переходы: ключ → (от, до, начало, лог.)
+        self.tweens = {}                           # плавные переходы: ключ → (от, до, начало, лог., длительность)
+        self.lab = None                            # вариант лабораторной работы (Variant) или None
+        self.student = ("", "")                    # ФИО и группа — для подписи снимков и файлов
         self.clock = QtCore.QElapsedTimer()
         self.clock.start()
         # настройки в INI-файле (на Windows — в папке %APPDATA%, а не в реестре)
@@ -99,21 +106,35 @@ class MainWindow(QtWidgets.QMainWindow):
         title.setObjectName("appTitle")
         sub = QtWidgets.QLabel("интерактивная модель · проект СЭЛФ, МГТУ им. Н. Э. Баумана")
         sub.setObjectName("appSub")
+        # на узком экране подзаголовок уступает место кнопкам (обрезается, а не раздвигает окно)
+        sub.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Preferred)
+        sub.setMinimumWidth(1)
         names.addWidget(title)
         names.addWidget(sub)
         row.addSpacing(6)
         row.addLayout(names)
         row.addStretch()
+        self.lab_badge = QtWidgets.QLabel()
+        self.lab_badge.setObjectName("labBadge")
+        self.lab_badge.hide()
+        row.addWidget(self.lab_badge)
+        self.lab_button = QtWidgets.QPushButton("Лабораторная")
+        self.lab_button.setObjectName("primary")
+        self.lab_button.setToolTip("Режим лабораторной: вариант со скрытыми величинами и журнал измерений")
+        self.lab_button.clicked.connect(self.toggle_lab)
+        row.addWidget(self.lab_button)
+        row.addSpacing(6)
         self.header_buttons = []
-        for text, slot, tip in (("Снимок окна PNG", self.save_png, "Ctrl+S"),
+        for text, slot, tip in (("Снимок PNG", self.save_png, "Ctrl+S — снимок окна"),
                                 ("Кольца PNG", self.save_rings, "Ctrl+Shift+S — картинка колец 2048 × 2048"),
-                                ("Таблица CSV", self.save_csv, "Ctrl+E — для Excel"),
+                                ("CSV", self.save_csv, "Ctrl+E — таблица или журнал для Excel"),
                                 ("Копировать", self.copy_table, "Ctrl+Shift+C — таблица в буфер обмена")):
             button = QtWidgets.QPushButton(text)
             button.setObjectName("ghost")
             button.setToolTip(tip)
             button.clicked.connect(slot)
             row.addWidget(button)
+            self.header_buttons.append(button)
         self.theme_button = QtWidgets.QPushButton()
         self.theme_button.setObjectName("ghost")
         self.theme_button.setToolTip("Ctrl+T")
@@ -135,6 +156,7 @@ class MainWindow(QtWidgets.QMainWindow):
         column.setSpacing(10)
 
         box, layout = make_card("Готовые примеры")
+        self.presets_box = box
         layout.setSpacing(4)
         self.preset_group = QtWidgets.QButtonGroup(self)
         self.preset_buttons = []
@@ -165,6 +187,18 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(hint)
         column.addWidget(box)
 
+        box, layout = make_card("Реалистичный режим")
+        self.realism_switch = ToggleSwitch("Как в настоящем приборе")
+        self.realism_switch.setToolTip("Неплоскостность зеркал, ширина спектральной линии и шум приёмника")
+        self.realism_switch.toggled.connect(self.schedule)
+        layout.addWidget(self.realism_switch)
+        text = QtWidgets.QLabel("Зеркала неидеально плоские, линия источника имеет ширину, показания "
+                                "приёмника слегка «дрожат». Пики ниже и шире, положения — прежние.")
+        text.setObjectName("hint")
+        text.setWordWrap(True)
+        layout.addWidget(text)
+        column.addWidget(box)
+
         box, layout = make_card("Анимация")
         text = QtWidgets.QLabel("Зеркало медленно сдвигается: каждые λ/2 в центре рождается "
                                 "новое кольцо, а пики бегут по графику.")
@@ -182,6 +216,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.second = ToggleSwitch("Показать λ₂ = λ₁ + δλ")
         self.second.toggled.connect(self.second_toggled)
         layout.addWidget(self.second)
+        self.unknown_doublet = ToggleSwitch("Неизвестный дублет (задание 6.1)")
+        self.unknown_doublet.setToolTip("Вторая линия со скрытой разностью длин волн — её нужно определить")
+        self.unknown_doublet.toggled.connect(self.second_toggled)
+        self.unknown_doublet.hide()
+        layout.addWidget(self.unknown_doublet)
         grid = QtWidgets.QGridLayout()
         grid.setColumnStretch(0, 1)
         grid.setVerticalSpacing(2)
@@ -210,6 +249,10 @@ class MainWindow(QtWidgets.QMainWindow):
         # наведение на кольца показывает тот же радиус на разрезе — и наоборот
         self.ring_view.hovered.connect(self.plot_r.set_hover)
         self.plot_r.hovered.connect(self.ring_view.set_hover)
+        # правый щелчок — записать точку в журнал измерений
+        self.plot_t.picked.connect(lambda x, y: self.pick(lambda: self.journal.plot_pick(x, self.plot_t.xunit, y)))
+        self.ring_view.picked.connect(lambda r, y: self.pick(lambda: self.journal.ring_pick(r, y)))
+        self.plot_r.picked.connect(lambda r, y: self.pick(lambda: self.journal.ring_pick(r, y)))
 
         screen, layout = make_card(None, "screen")
         layout.setContentsMargins(12, 10, 12, 12)
@@ -221,6 +264,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.glow_switch.setToolTip("Мягкий ореол вокруг ярких колец, как на фотографии")
         self.glow_switch.toggled.connect(self.ring_view.set_glow)
         top.addWidget(self.glow_switch)
+        self.ring_view.setToolTip("Колёсико — лупа, перетаскивание — сдвиг, двойной щелчок — весь экран, "
+                                  "правый щелчок — записать радиус в журнал")
         layout.addLayout(top)
         layout.addWidget(self.ring_view, 1)
 
@@ -238,10 +283,28 @@ class MainWindow(QtWidgets.QMainWindow):
         return views
 
     def build_results(self):
-        """Правая колонка: главные величины крупно, таблица «по графику / по формуле», вывод."""
+        """Правая колонка: две страницы — «Результаты» (измерения программы) и «Журнал» (свои измерения)."""
+        outer = QtWidgets.QWidget()
+        outer_column = QtWidgets.QVBoxLayout(outer)
+        outer_column.setContentsMargins(10, 0, 0, 10)
+        outer_column.setSpacing(8)
+        switch = QtWidgets.QHBoxLayout()
+        switch.setSpacing(0)
+        self.page_buttons = []
+        for i, text in enumerate(("Результаты", "Журнал измерений")):
+            button = QtWidgets.QPushButton(text)
+            button.setObjectName("segment")
+            button.setCheckable(True)
+            button.clicked.connect(lambda _, i=i: self.show_page(i))
+            switch.addWidget(button)
+            self.page_buttons.append(button)
+        outer_column.addLayout(switch)
+        self.pages = QtWidgets.QStackedWidget()
+        outer_column.addWidget(self.pages, 1)
+
         panel = QtWidgets.QWidget()
         column = QtWidgets.QVBoxLayout(panel)
-        column.setContentsMargins(10, 0, 0, 10)
+        column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
 
         # плитки 2 × 2: крупно — значение по графику, под ним — по формуле и расхождение
@@ -300,8 +363,27 @@ class MainWindow(QtWidgets.QMainWindow):
         self.verdict.setObjectName("verdict")
         self.verdict.setWordWrap(True)
         column.addWidget(self.verdict)
-        panel.setMinimumWidth(380)
-        return panel
+        self.pages.addWidget(panel)
+
+        self.journal = Journal(self.context, lambda text: self.statusBar().showMessage(text, 6000))
+        self.journal.changed.connect(self.save_journal)
+        self.pages.addWidget(self.journal)
+        outer.setMinimumWidth(380)
+        self.show_page(0)
+        return outer
+
+    def show_page(self, index):
+        """Переключить правую колонку: 0 — результаты программы, 1 — журнал измерений."""
+        if self.lab is not None:
+            index = 1                              # в лабораторной результаты программы скрыты
+        self.pages.setCurrentIndex(index)
+        for i, button in enumerate(self.page_buttons):
+            button.setChecked(i == index)
+
+    def pick(self, action):
+        """Правый щелчок: открыть журнал и записать туда точку."""
+        self.show_page(1)
+        action()
 
     def build_actions(self):
         """Сочетания клавиш."""
@@ -325,8 +407,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.update_scan_button()
         if smooth and self.ready and key in self.shown:
             # переход начинается с того, что на картинке сейчас, — даже если
-            # предыдущий переход ещё не закончился
-            self.tweens[key] = (self.shown[key], target, self.clock.elapsed(), self.params[key].log)
+            # предыдущий переход ещё не закончился; шаг стрелкой — короткий переход
+            duration = FAST_MS if smooth == "fast" else TWEEN_MS
+            self.tweens[key] = (self.shown[key], target, self.clock.elapsed(), self.params[key].log, duration)
             if not self.tween_timer.isActive():
                 self.tween_timer.start()
         else:
@@ -339,8 +422,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def tween_step(self):
         """Один кадр плавного перехода: значения на картинке чуть ближе к новым."""
         now = self.clock.elapsed()
-        for key, (a, b, start, log) in list(self.tweens.items()):
-            t = min((now - start) / TWEEN_MS, 1.0)
+        for key, (a, b, start, log, duration) in list(self.tweens.items()):
+            t = min((now - start) / duration, 1.0)
             e = ease(t)
             # на логарифмической шкале (δλ) переход тоже идёт по логарифму
             self.shown[key] = a * (b / a) ** e if log and a > 0 and b > 0 else a + (b - a) * e
@@ -356,9 +439,13 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.timer.isActive():
             self.timer.start()
 
-    def second_toggled(self, on):
-        self.params["dlam"].slider.setEnabled(on)
+    def second_toggled(self, *args):
+        on = self.second.isChecked()
+        secret = self.lab is not None and self.unknown_doublet.isChecked()
+        self.params["dlam"].set_hidden(secret)
+        self.params["dlam"].slider.setEnabled(on and not secret)
         self.params["dlam"].spin.setEnabled(on)
+        self.unknown_doublet.setEnabled(on)
         if not self.applying:
             self.check_preset(None)
         self.schedule()
@@ -406,10 +493,28 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recalc()
 
     # --- главный расчёт ---
+    def effective(self):
+        """Значения для физики: видимые из полей или скрытые из варианта лабораторной работы."""
+        v = dict(self.shown)
+        if self.lab is not None:
+            v["lam"], v["A"] = self.lab.lam, self.lab.A
+            if self.unknown_doublet.isChecked():
+                v["dlam"] = self.lab.dlam
+        return v
+
+    def realism(self, lam):
+        """(неплоскостность, м; ширина линии, м; шум) или None, если реалистичный режим выключен."""
+        if not self.realism_switch.isChecked():
+            return None
+        if self.lab is not None:
+            return self.lab.realism()
+        flat, width, noise = DEFAULT_REALISM
+        return flat * lam, width, noise
+
     def recalc(self):
         """Берём параметры, считаем физику, обновляем графики и таблицу."""
         self.timer.stop()
-        v = self.shown
+        v = self.effective()
         lam = v["lam"] * 1e-9                      # нм → м
         d = v["d"] * 1e-3 + v["dd"] * 1e-9         # зазор вместе с микросдвигом, м
         R, n = v["R"], v["n"]
@@ -419,71 +524,105 @@ class MainWindow(QtWidgets.QMainWindow):
         lam2 = lam + v["dlam"] * 1e-12
         th = theory(lam, d, n, R, f, A)
         F, fsr, tmax = th["F"], th["fsr"], th["tmax"]
-        self.lam2_label.setText(f"λ₂ = {num(lam2 * 1e9, 9)} нм" if two else "Вторая линия выключена")
+        real = self.realism(lam)
+        flat, width, noise = real if real else (0.0, 0.0, 0.0)
+        blur = blur_halfwidth(lam, d, n, flat, width)
+        sigma = noise * tmax                       # шум приёмника в единицах пропускания
+        hidden = self.lab is not None and self.unknown_doublet.isChecked()
+        if not two:
+            self.lam2_label.setText("Вторая линия выключена")
+        elif self.lab is not None:
+            self.lam2_label.setText("λ₂ = λ₁ + скрытая разность" if hidden else f"λ₂ = λ₁ + {num(v['dlam'], 5)} пм")
+        else:
+            self.lam2_label.setText(f"λ₂ = {num(lam2 * 1e9, 9)} нм")
 
         # 1. Измерения по графику T(λ): по полтора Δλ слева и справа от λ₁,
         #    не меньше 30 точек на ширину пика (это десятки тысяч точек, не больше).
         x = lam + np.linspace(-1.5 * fsr, 1.5 * fsr, curve_samples(3 * fsr, th["width"], fsr))
-        T = airy(phase(x, d, n), F, tmax)
+        T = airy_blurred(phase(x, d, n), F, tmax, blur)
         meas = measure_curve(x, T, lam)
         self.curve = (x, T)
         # а сам график рисуется по формуле — точно при любом масштабе (см. Plot.draw_curve)
         lo, hi = -1.5 * fsr, (lam2 - lam if two else 0.0) + 1.5 * fsr
-        self.show_transmission(lam, lam2 if two else None, lo, hi, meas, d, n, F, tmax)
+        self.show_transmission(lam, lam2 if two else None, lo, hi, meas, d, n, F, tmax, blur, sigma, hidden)
 
         # 2. Кольца: картинка считается по формуле прямо в виджете
         lines = [(lam, "λ₁")] + ([(lam2, "λ₂")] if two else [])
         caption = f"экран ⌀ {short(round(2 * v['screen'], 1))} мм · f = {short(round(v['f']))} мм"
+        self.ring_view.show_order = self.lab is None
         self.ring_view.show_data([(wl, wavelength_rgb(wl * 1e9)) for wl, _ in lines], half, caption,
-                                 (d, n, f), F, tmax)
+                                 (d, n, f), F, tmax, blur, sigma)
 
         # 3. Радиусы колец: по картинке (максимумы яркости) и по формуле
-        measured, near = measure_rings(lam, d, n, f, half, F, tmax)   # «кольцо» в самом центре не считаем
+        measured, near = measure_rings(lam, d, n, f, half, F, tmax, blur=blur)   # «кольцо» в центре не считаем
         predicted = ring_radii(lam, d, n, f, half)
         predicted = predicted[predicted > near]
         self.radii = (measured, predicted)
-        marks = [(rk * 1e3, THEME["muted"], label) for rk, label in zip(measured[:2], ("r₁", "r₂"))]
+        marks = [] if self.lab is not None else [
+            (rk * 1e3, THEME["muted"], label) for rk, label in zip(measured[:2], ("r₁", "r₂"))]
         # разрез: у каждой линии своя кривая своего цвета; две линии делят свет пополам
         share = len(lines)
 
-        def ring_curve(wl, name):
-            def sin_out(x_mm):
-                r = x_mm * 1e-3
-                return r / np.hypot(r, f)
+        def sin_out(x_mm):
+            r = x_mm * 1e-3
+            return r / np.hypot(r, f)
 
+        def ring_curve(wl, name):
             def value(x_mm):
-                return airy(phase(wl, d, n, sin_out(x_mm)), F, tmax) / share
+                return airy_blurred(phase(wl, d, n, sin_out(x_mm)), F, tmax, blur) / share
 
             def span(edges):
-                lo_, hi_ = airy_range(phase(wl, d, n, sin_out(edges)), F, tmax)
+                lo_, hi_ = blurred_range(phase(wl, d, n, sin_out(edges)), F, tmax, blur)
                 return lo_ / share, hi_ / share
-            return Curve(value, span, line_color(wl * 1e9), name if two else "I / I₀")
+            return Curve(value, span, line_color(wl * 1e9), name if two else "I / I₀", sigma / share)
 
+        curves = [ring_curve(wl, name) for wl, name in lines]
+        if two:
+            curves.append(self.sum_curve(list(curves), sigma))
         self.plot_r.show_data("Расстояние от центра r, мм", "мм", (0.0, v["screen"]), (0.0, 1.15),
-                              [ring_curve(wl, name) for wl, name in lines], marks)
+                              curves, marks)
 
         self.fill_table(lam, th, meas, measured, predicted)
-        kind, text = self.verdict_text(two, lam2 - lam, th)
+        kind, text = self.verdict_text(two, lam2 - lam, th, blur)
         self.verdict.setText(text)
         if self.verdict.property("kind") != kind:
             polish(self.verdict, kind)             # цвет подложки: серый, зелёный или красный
 
-    def show_transmission(self, lam, lam2, lo, hi, meas, d, n, F, tmax):
+    def sum_curve(self, curves, sigma):
+        """Суммарная яркость двух линий на разрезе — по ней видно, различимы ли кольца.
+
+        Наибольшее и наименьшее значение суммы в столбце ищутся по 9 точкам столбца;
+        чтобы узкий пик одной из линий не потерялся, верх не ниже верха каждой из линий.
+        """
+        def value(x):
+            return sum(c.value(x) for c in curves)
+
+        def span(edges):
+            t = np.linspace(0.0, 1.0, 9)
+            grid = edges[:-1, None] + (edges[1:] - edges[:-1])[:, None] * t[None, :]
+            v = value(grid.ravel()).reshape(grid.shape)
+            his = [c.span(edges)[1] for c in curves]
+            return v.min(axis=1), np.maximum(v.max(axis=1), np.maximum(*his))
+        return Curve(value, span, THEME["text"], "сумма", sigma)
+
+    def show_transmission(self, lam, lam2, lo, hi, meas, d, n, F, tmax, blur, sigma, hidden):
         """График T(λ): по оси — отступ от λ₁; метки линий и измерения Δλ и w."""
         unit, scale = ("нм", 1e-9) if hi - lo >= 2e-9 else ("пм", 1e-12)
         color = line_color(lam * 1e9)
         marks = [(0.0, color, "λ₁")]
-        if lam2 is not None:
+        if lam2 is not None and not hidden:
             marks.append(((lam2 - lam) / scale, line_color(lam2 * 1e9), "λ₂"))
         spans = []
-        if meas["peaks"]:
-            a, b = meas["peaks"]
-            spans.append(((a - lam) / scale, (b - lam) / scale, 1.07, f"Δλ = {length(meas['fsr'])}"))
-        if meas["half"]:
-            a, b, level = meas["half"]
-            spans.append(((a - lam) / scale, (b - lam) / scale, level, f"w = {length(meas['width'])}"))
-        curve = Curve(lambda x: airy(phase(lam + x * scale, d, n), F, tmax),
-                      lambda edges: airy_range(phase(lam + edges * scale, d, n), F, tmax), color, "T")
+        if self.lab is None:                       # в лабораторной измеряет сам студент
+            if meas["peaks"]:
+                a, b = meas["peaks"]
+                spans.append(((a - lam) / scale, (b - lam) / scale, 1.07, f"Δλ = {length(meas['fsr'])}"))
+            if meas["half"]:
+                a, b, level = meas["half"]
+                spans.append(((a - lam) / scale, (b - lam) / scale, level, f"w = {length(meas['width'])}"))
+        curve = Curve(lambda x: airy_blurred(phase(lam + x * scale, d, n), F, tmax, blur),
+                      lambda edges: blurred_range(phase(lam + edges * scale, d, n), F, tmax, blur), color, "T",
+                      sigma)
         self.plot_t.show_data(f"Отступ от λ₁: λ − λ₁, {unit}", unit, (lo / scale, hi / scale), (0.0, 1.15),
                               [curve], marks, spans)
 
@@ -559,7 +698,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if badge.property("kind") != kind:
                 polish(badge, kind)
 
-    def verdict_text(self, two, dlam, th):
+    def verdict_text(self, two, dlam, th, blur=0.0):
         """Вывод о второй линии: различает ли её прибор. Возвращает (вид, текст),
         вид — «info» (подсказка), «ok» (различимы) или «bad» (не различимы)."""
         w, fsr = th["width"], th["fsr"]
@@ -571,21 +710,98 @@ class MainWindow(QtWidgets.QMainWindow):
         if w is None:
             return "bad", ("Зеркала слишком слабые (R < 0,172): пропускание нигде не падает до половины, "
                            "отдельных пиков нет, и линии не разделить.")
-        if dlam < w:
-            return "bad", (f"δλ = {length(dlam)} меньше ширины пика w = {length(w)}: "
-                           "линии сливаются, прибор их не различает.")
         if dlam > fsr - w:
             return "bad", (f"δλ = {length(dlam)} близко к Δλ = {length(fsr)} или больше: кольца λ₂ ложатся "
                            "на соседние кольца λ₁ (перекрытие порядков), линии путаются.")
-        return "ok", (f"δλ = {length(dlam)} больше ширины пика w = {length(w)}: "
-                      "линии различимы — кольца двойные.")
+        # критерий, аналогичный Рэлею: провал между линиями не выше 0,81 от максимума
+        dip = dip_ratio(dlam % fsr, fsr, th["F"], blur)
+        if dip > RAYLEIGH:
+            return "bad", (f"Провал между линиями {num(dip, 2)} от максимума — больше {num(RAYLEIGH, 2)}: "
+                           f"линии сливаются (δλ = {length(dlam)}, ширина пика w = {length(w)}).")
+        return "ok", (f"Провал между линиями {num(dip, 2)} от максимума — не больше {num(RAYLEIGH, 2)}: "
+                      f"линии различимы, кольца двойные (δλ = {length(dlam)}, w = {length(w)}).")
+
+    # --- лабораторная работа ---
+    def context(self):
+        """Текущие параметры для журнала (мм, нм, пм). Скрытые в лабораторной — None."""
+        v = self.shown
+        hidden_dlam = self.lab is not None and self.unknown_doublet.isChecked()
+        return {"d": v["d"], "R": v["R"], "n": v["n"], "f": v["f"], "dd": v["dd"],
+                "dlam": None if hidden_dlam or not self.second.isChecked() else v["dlam"],
+                "lam": None if self.lab is not None else v["lam"]}
+
+    def toggle_lab(self):
+        if self.lab is not None:
+            answer = QtWidgets.QMessageBox.question(
+                self, "Завершить лабораторную работу",
+                "Завершить работу? Журнал измерений останется, скрытые величины — нет.")
+            if answer == QtWidgets.QMessageBox.StandardButton.Yes:
+                self.set_lab(None)
+            return
+        dialog = LabDialog(self, *self.student)
+        if dialog.exec():
+            self.student = (dialog.name.text().strip(), dialog.group.text().strip())
+            self.realism_switch.setChecked(dialog.realism.isChecked())
+            if dialog.fresh.isChecked():
+                self.journal.clear_all()
+            self.set_lab(Variant(dialog.code.value()))
+
+    def set_lab(self, variant):
+        """Включить (Variant) или выключить (None) режим лабораторной работы."""
+        self.lab = variant
+        on = variant is not None
+        for key in ("lam", "A"):
+            self.params[key].set_hidden(on)
+        self.presets_box.setEnabled(not on)
+        self.unknown_doublet.setVisible(on)
+        if not on:
+            self.unknown_doublet.setChecked(False)
+        self.page_buttons[0].setEnabled(not on)
+        self.show_page(1 if on else 0)
+        self.header_buttons[3].setEnabled(not on)          # «Копировать» таблицу программы
+        if on:
+            who = ", ".join(x for x in self.student if x) or "студент"
+            self.lab_badge.setText(f"Лабораторная · вариант {variant.code}")
+            self.lab_badge.setToolTip(f"{who}. Длина волны и поглощение скрыты")
+            self.journal.owner.setText(f"{who} · вариант {variant.code}")
+            self.lab_button.setText("Завершить")
+            self.journal.set_extra({
+                "rings": f"Вариант {variant.code}: d = {short(variant.d_rings)} мм, "
+                         f"f = {short(variant.f_rings)} мм, экран 10 мм, R = 0,9.",
+                "fsr": "Рекомендуется R = 0,9; d = 1, 2, 3, 5, 8, 12 мм.",
+                "width": "Рекомендуется d = 5 мм; R = 0,5 … 0,98. Уровень половины — Tmax/2, "
+                         "Tmax измерьте курсором.",
+                "shift": "Рекомендуется d = 5 мм, R = 0,9; курсор — в центре картины колец.",
+                "doublet": "Включите вторую линию и «Неизвестный дублет»; R = 0,9; начните с d = 0,2 мм.",
+                "resolve": "Выключите «Неизвестный дублет», задайте d = 1 мм и уменьшайте δλ.",
+            })
+            self.statusBar().showMessage(f"Лабораторная работа, вариант {variant.code}. Длина волны и "
+                                         "поглощение скрыты — определите их по заданиям.", 10000)
+        else:
+            self.lab_button.setText("Лабораторная")
+            self.journal.set_extra({})
+            self.journal.owner.setText("")
+        self.lab_badge.setVisible(on)
+        self.second_toggled()
+        self.save_lab()
+        self.recalc()
+
+    def save_lab(self):
+        s = self.settings
+        s.setValue("lab/code", self.lab.code if self.lab else 0)
+        s.setValue("lab/name", self.student[0])
+        s.setValue("lab/group", self.student[1])
+        s.setValue("lab/doublet", self.unknown_doublet.isChecked())
+
+    def save_journal(self):
+        self.settings.setValue("journal", self.journal.to_json())
 
     # --- тема, справка, полноэкранный режим ---
     def apply_theme(self):
         app = QtWidgets.QApplication.instance()
         app.setPalette(qt_palette())
         app.setStyleSheet(stylesheet())
-        self.theme_button.setText("Светлая тема" if THEME.dark else "Тёмная тема")
+        self.theme_button.setText("Светлая" if THEME.dark else "Тёмная")
         for row in self.params.values():
             row.restyle()
         for button, values, dlam in self.preset_buttons:
@@ -616,7 +832,11 @@ class MainWindow(QtWidgets.QMainWindow):
             "перетаскивание — сдвиг, двойной щелчок — весь график.\n"
             "• Наведите мышь на кольца — радиус, порядок интерференции m и яркость; "
             "тот же радиус отмечается на разрезе.\n"
-            "• Справа — измерения по графикам и значения по формулам; значок показывает расхождение.\n\n"
+            "• Справа — измерения по графикам и значения по формулам; значок показывает расхождение.\n"
+            "• Правый щелчок по графику, разрезу или кольцам записывает точку в журнал измерений; "
+            "журнал проводит прямую методом наименьших квадратов и считает результат с погрешностью.\n"
+            "• Колёсико над кольцами — лупа, двойной щелчок — весь экран.\n"
+            "• «Лабораторная работа» — вариант со скрытой длиной волны и поглощением.\n\n"
             "Клавиши\n"
             "Ctrl+S — снимок окна PNG    Ctrl+Shift+S — кольца PNG 2048 × 2048\n"
             "Ctrl+E — таблица CSV    Ctrl+Shift+C — копировать таблицу\n"
@@ -651,7 +871,7 @@ class MainWindow(QtWidgets.QMainWindow):
         image = QImage(side, side, QImage.Format.Format_ARGB32)
         image.fill(QColor(SCREEN_BG))
         p = QPainter(image)
-        p.drawImage(0, 0, self.ring_view.make_image(side))
+        p.drawImage(0, 0, self.ring_view.make_image(side, 1.0, (0.0, 0.0)))
         p.end()
         if image.save(path, "PNG"):
             self.statusBar().showMessage(f"Кольца сохранены: {path}", 6000)
@@ -672,6 +892,9 @@ class MainWindow(QtWidgets.QMainWindow):
             # utf-8-sig и «;» — чтобы русский Excel сразу открыл файл без «кракозябр»
             with open(path, "w", newline="", encoding="utf-8-sig") as file:
                 out = csv.writer(file, delimiter=";")
+                if self.lab is not None:
+                    self.write_lab_csv(out)
+                    return self.statusBar().showMessage(f"Журнал сохранён: {path}", 6000)
                 out.writerow(["Параметр", "Значение", "Единица"])
                 for row in self.params.values():
                     out.writerow([row.name, plain(self.shown[row.key]), row.unit])
@@ -693,10 +916,27 @@ class MainWindow(QtWidgets.QMainWindow):
                 step = max(1, len(x) // 20000)     # не больше примерно 20 000 строк
                 for a, b in zip(x[::step], T[::step]):
                     out.writerow([f"{a * 1e9:.6f}".replace(".", ","), plain(b)])
+                journal = self.journal.csv_rows()
+                if journal:
+                    out.writerow([])
+                    out.writerow(["Журнал измерений"])
+                    for row in journal:
+                        out.writerow(row)
         except OSError as error:
             QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить файл:\n{error}")
             return
         self.statusBar().showMessage(f"Таблица сохранена: {path}", 6000)
+
+    def write_lab_csv(self, out):
+        """CSV в лабораторной: кто, вариант, видимые параметры и журнал (скрытых величин нет)."""
+        out.writerow(["Лабораторная работа «Интерферометр Фабри — Перо»"])
+        out.writerow(["Студент", self.student[0]])
+        out.writerow(["Группа", self.student[1]])
+        out.writerow(["Вариант", self.lab.code])
+        out.writerow(["Реалистичный режим", "включён" if self.realism_switch.isChecked() else "выключен"])
+        out.writerow([])
+        for row in self.journal.csv_rows():
+            out.writerow(row)
 
     def copy_table(self):
         """Таблица в буфер обмена через табуляцию — вставляется в Excel и Word как таблица."""
@@ -727,9 +967,19 @@ class MainWindow(QtWidgets.QMainWindow):
                 self.params[key].set(value)
             self.second.setChecked(dlam is not None)
             self.check_preset(values)
-        self.second_toggled(self.second.isChecked())
         for key, row in self.params.items():
             self.shown[key] = row.value()
+        self.realism_switch.setChecked(s.value("realism", False, type=bool))
+        self.journal.load_json(s.value("journal", ""))
+        self.student = (s.value("lab/name", "") or "", s.value("lab/group", "") or "")
+        code = int(s.value("lab/code", 0) or 0)
+        if code in CODES:                          # незавершённая лабораторная продолжается
+            self.unknown_doublet.setChecked(s.value("lab/doublet", False, type=bool))
+            self.ready = True
+            self.set_lab(Variant(code))
+            self.ready = False
+        else:
+            self.second_toggled()
         geometry = s.value("geometry")
         if geometry is not None:
             self.restoreGeometry(geometry)
@@ -744,4 +994,46 @@ class MainWindow(QtWidgets.QMainWindow):
         for key, row in self.params.items():
             s.setValue("params/" + key, row.value())
         s.setValue("geometry", self.saveGeometry())
+        s.setValue("realism", self.realism_switch.isChecked())
+        self.save_journal()
+        self.save_lab()
         super().closeEvent(event)
+
+
+class LabDialog(QtWidgets.QDialog):
+    """Начало лабораторной работы: кто выполняет и какой вариант."""
+
+    def __init__(self, parent, name="", group=""):
+        super().__init__(parent)
+        self.setWindowTitle("Лабораторная работа")
+        form = QtWidgets.QFormLayout(self)
+        form.setSpacing(10)
+        info = QtWidgets.QLabel("В режиме лабораторной длина волны источника и поглощение зеркал скрыты — "
+                                "их нужно определить по измерениям. Программа не показывает свои "
+                                "измерения и значения по формулам: справа открыт журнал.")
+        info.setWordWrap(True)
+        info.setObjectName("hint")
+        form.addRow(info)
+        self.name = QtWidgets.QLineEdit(name)
+        self.name.setPlaceholderText("Иванов И. И.")
+        self.group = QtWidgets.QLineEdit(group)
+        self.group.setPlaceholderText("СМ1-21")
+        self.code = QtWidgets.QSpinBox()
+        self.code.setRange(min(CODES), max(CODES))
+        self.realism = ToggleSwitch("Реалистичный режим (как в настоящем приборе)")
+        self.realism.setChecked(True)
+        self.fresh = ToggleSwitch("Начать журнал заново")
+        self.fresh.setChecked(True)
+        form.addRow("Фамилия И. О.", self.name)
+        form.addRow("Группа", self.group)
+        form.addRow("Вариант (выдаёт преподаватель)", self.code)
+        form.addRow(self.realism)
+        form.addRow(self.fresh)
+        buttons = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok
+                                             | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
+        buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Ok).setText("Начать")
+        buttons.button(QtWidgets.QDialogButtonBox.StandardButton.Cancel).setText("Отмена")
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+        self.setMinimumWidth(460)

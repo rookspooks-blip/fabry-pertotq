@@ -350,6 +350,8 @@ def modules():
     b.append(box(280, 300, 200, 70, "physics.py", "формулы и измерения\n(только numpy)", "#fff4e8", ORANGE))
     b.append(box(540, 300, 200, 70, "fmt.py", "числа по-русски,\nделения осей"))
     b.append(box(560, 90, 180, 64, "qt.py", "PyQt6 или PyQt5"))
+    b.append(box(20, 90, 200, 64, "journal.py + lab.py", "журнал, варианты,\nметод наим. квадратов", "#fff8e1", "#b8860b"))
+    b.append(arrow(270, 200, 180, 156))
     b.append(arrow(380, 60, 380, 88))
     b.append(arrow(380, 154, 380, 182))
     b.append(arrow(270, 224, 222, 224))
@@ -512,9 +514,23 @@ def raster():
     return svg(W, H, "".join(b))
 
 
+def mmgrid():
+    """Миллиметровая сетка для графика в бланке отчёта (170 × 105 мм)."""
+    W, H = 170, 105
+    b = [f'<rect x="0" y="0" width="{W}" height="{H}" fill="white" stroke="#d98c5f" stroke-width="0.35"/>']
+    for i in range(W + 1):
+        width = 0.3 if i % 10 == 0 else (0.18 if i % 5 == 0 else 0.07)
+        b.append(f'<line x1="{i}" y1="0" x2="{i}" y2="{H}" stroke="#e0a07a" stroke-width="{width}"/>')
+    for j in range(H + 1):
+        width = 0.3 if j % 10 == 0 else (0.18 if j % 5 == 0 else 0.07)
+        b.append(f'<line x1="0" y1="{j}" x2="{W}" y2="{j}" stroke="#e0a07a" stroke-width="{width}"/>')
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}mm" height="{H}mm">'
+            + "".join(b) + "</svg>")
+
+
 FIGURES = {
     "scheme": scheme, "beams": beams, "airy_family": airy_family, "peak_measures": peak_measures,
     "rings_linear": rings_linear, "resolution": resolution, "shift_linear": shift_linear,
     "modules": modules, "pipeline": pipeline, "parabola": parabola, "columns": columns,
-    "antiderivative": antiderivative, "ease": ease_curve, "layout": layout, "raster": raster,
+    "antiderivative": antiderivative, "ease": ease_curve, "layout": layout, "raster": raster, "mmgrid": mmgrid,
 }

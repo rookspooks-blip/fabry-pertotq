@@ -85,3 +85,69 @@ def test_exports(window, tmp_path):
     assert "Ширина пика w" in text
     assert (tmp_path / "w.png").stat().st_size > 1000
     assert (tmp_path / "r.png").stat().st_size > 1000
+
+
+def test_fast_step_is_short(window):
+    row = window.params["dd"]
+    before = window.shown["dd"]
+    row.spin.stepBy(10)                        # как стрелка ↑ в поле ввода
+    wait(300)                                  # короткий переход (0,15 с) уже закончился
+    assert row.value() > before
+    assert window.shown["dd"] == pytest.approx(row.value())
+
+
+def test_lab_mode_hides_and_records(window, tmp_path):
+    from fabry_perot.lab import Variant
+    window.journal.clear_all()
+    window.realism_switch.setChecked(True)
+    window.set_lab(Variant(5))
+    assert window.params["lam"].hidden and window.params["A"].hidden
+    assert window.pages.currentIndex() == 1                   # справа — только журнал
+    assert window.context()["lam"] is None
+    assert not window.ring_view.show_order                    # порядок кольца не подсказывается
+    # серия «кольца»: правый щелчок по трём радиусам
+    window.journal.select("rings")
+    for r in (1.0, 2.0, 3.0):
+        window.ring_view.picked.emit(r, 0.5)
+    rows = window.journal.data["rings"]
+    assert [row["x"] for row in rows] == [1, 2, 3]
+    assert rows[1]["y"] == pytest.approx(4.0)
+    # серия «пара точек»: Δλ = |x₂ − x₁|
+    window.journal.select("fsr")
+    window.plot_t.picked.emit(-10.0, 0.9)
+    window.plot_t.picked.emit(30.0, 0.9)
+    assert window.journal.data["fsr"][0]["y"] == pytest.approx(40.0)
+    # экспорт в лабораторной не содержит скрытой длины волны
+    window.write_csv(str(tmp_path / "lab.csv"))
+    text = (tmp_path / "lab.csv").read_text(encoding="utf-8-sig")
+    assert "Вариант" in text and str(Variant(5).lam).replace(".", ",") not in text
+    window.set_lab(None)
+    window.realism_switch.setChecked(False)
+    assert not window.params["lam"].hidden and window.pages.currentIndex() == 0
+
+
+def test_realism_lowers_peaks(window):
+    window.set_lab(None)
+    window.realism_switch.setChecked(False)
+    window.recalc()
+    ideal = window.curve[1].max()
+    window.realism_switch.setChecked(True)
+    window.recalc()
+    assert window.curve[1].max() < ideal
+    window.realism_switch.setChecked(False)
+    window.recalc()
+
+
+def test_ring_zoom_and_sum_curve(window):
+    ring = window.ring_view
+    ring.scale, ring.center = 4.0, (0.002, 0.0)
+    ring.image = None
+    ring.repaint()
+    image = ring.make_image(200)
+    assert image.width() == 200
+    ring.mouseDoubleClickEvent(None)
+    assert ring.scale == 1.0
+    window.second.setChecked(True)
+    window.recalc()
+    assert window.plot_r.curves[-1].name == "сумма"
+    window.second.setChecked(False)

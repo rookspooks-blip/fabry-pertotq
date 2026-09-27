@@ -102,6 +102,8 @@ QLabel#appSub, QLabel#hint {{ color: {p['muted']}; font-size: 12px; }}
 QLabel#h2 {{ font-size: 16px; font-weight: 700; }}
 QLabel#cardTitle {{ font-size: 11px; font-weight: 700; color: {p['muted']}; }}
 QLabel#limits {{ color: {p['faint']}; font-size: 11px; }}
+QLabel#secret {{ background: {p['raised']}; border: 1px dashed {p['line']}; border-radius: 7px; padding: 3px 8px;
+                color: {p['muted']}; font-style: italic; }}
 QLabel#tileCaption {{ color: {p['muted']}; font-size: 12px; }}
 QLabel#tileValue {{ font-size: 21px; font-weight: 700; }}
 QLabel#tileNote {{ color: {p['muted']}; font-size: 11px; }}
@@ -122,7 +124,7 @@ QPushButton:hover {{ border-color: {p['accent']}; }}
 QPushButton:pressed {{ background: {p['border']}; }}
 QPushButton#primary {{ background: {p['accent']}; color: {p['accent_text']}; border: none; font-weight: 700; }}
 QPushButton#primary:hover {{ background: {p['accent_hover']}; }}
-QPushButton#ghost {{ background: transparent; border: 1px solid transparent; color: {p['muted']}; }}
+QPushButton#ghost {{ background: transparent; border: 1px solid transparent; color: {p['muted']}; padding: 6px 9px; }}
 QPushButton#ghost:hover {{ background: {p['raised']}; border-color: {p['line']}; color: {p['text']}; }}
 QFrame#screen QPushButton#ghost {{ color: #8795A8; }}
 QFrame#screen QPushButton#ghost:hover {{ background: #111923; border-color: #2A3A4E; color: #E7EDF4; }}
@@ -155,6 +157,22 @@ QToolTip {{ background: {p['surface']}; color: {p['text']}; border: 1px solid {p
 QStatusBar {{ background: {p['bg']}; color: {p['muted']}; font-size: 12px; }}
 QStatusBar::item {{ border: none; }}
 QMessageBox {{ background: {p['surface']}; }}
+QDialog {{ background: {p['surface']}; }}
+QLabel#labBadge {{ background: {p['warn'][0]}; color: {p['warn'][1]}; border: 1px solid {p['warn'][2]};
+                  border-radius: 9px; padding: 5px 10px; font-weight: 600; }}
+QLabel#owner {{ font-weight: 700; }}
+QLabel#journalResult {{ background: {p['surface']}; border: 1px solid {p['border']}; border-radius: 10px;
+                       padding: 8px 10px; }}
+QPushButton#segment {{ background: {p['raised']}; border: 1px solid {p['line']}; border-radius: 0; padding: 6px 10px;
+                      color: {p['muted']}; }}
+QPushButton#segment:checked {{ background: {p['accent']}; color: {p['accent_text']}; border-color: {p['accent']};
+                              font-weight: 700; }}
+QPushButton#segment:disabled {{ color: {p['faint']}; }}
+QComboBox, QLineEdit, QSpinBox {{ background: {p['raised']}; border: 1px solid {p['border']}; border-radius: 7px;
+                                 padding: 4px 8px; }}
+QComboBox:focus, QLineEdit:focus, QSpinBox:focus {{ border-color: {p['accent']}; }}
+QComboBox QAbstractItemView {{ background: {p['surface']}; border: 1px solid {p['line']};
+                              selection-background-color: {p['raised']}; selection-color: {p['text']}; }}
 """
 
 
