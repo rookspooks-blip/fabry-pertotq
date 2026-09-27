@@ -1,0 +1,4 @@
+# Запуск из исходников (Windows 10/11, macOS, Linux):  pip install -r requirements.txt
+numpy>=1.19
+PyQt6>=6.4
+# На Windows 7, 8 и 8.1 вместо этого:  pip install -r requirements/win7.txt

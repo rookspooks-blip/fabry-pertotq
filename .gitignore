@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+.venv/
+build/
+dist/
+*.spec
+*.dmg
+*.tar.gz
+.DS_Store

@@ -1,0 +1,214 @@
+# Сборки для Windows 7–11, macOS и Linux.
+#
+# Запускается при каждом push и вручную (Actions → Build → Run workflow).
+# Готовые файлы лежат во вкладке Actions → нужный запуск → Artifacts.
+# Если отправить тег вида v2.0.0 (git tag v2.0.0 && git push origin v2.0.0),
+# файлы ещё и выкладываются в раздел Releases репозитория.
+
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  # Проверки на Linux: и старый набор (Python 3.8 + PyQt5, как для Windows 7),
+  # и новый (PyQt6, как для macOS и Linux).
+  test:
+    name: Tests (${{ matrix.name }})
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Python 3.8 + PyQt5
+            python: "3.8"
+            reqs: requirements/win7.txt
+            qt: "5"
+          - name: Python 3.11 + PyQt6
+            python: "3.11"
+            reqs: requirements/modern.txt
+            qt: "6"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: System libraries for Qt
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 fonts-dejavu-core
+      - run: pip install -r ${{ matrix.reqs }} -r requirements/build.txt
+      - name: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+          FABRY_QT: ${{ matrix.qt }}
+        run: python -m pytest -v tests
+
+  # Windows 7, 8, 8.1, 10, 11 — один файл .exe.
+  # Python 3.8 и Qt 5.15 — последние версии, которые работают на Windows 7.
+  # 32-битная сборка запускается и на 32-, и на 64-битной Windows.
+  windows:
+    name: Windows 7–11
+    needs: test
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.8"
+          architecture: x86
+      - run: pip install -r requirements/win7.txt -r requirements/build.txt pyinstaller==5.13.2
+      - name: pytest (Windows, Python 3.8 32-бит, PyQt5)
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -v tests
+      - name: Build .exe
+        shell: pwsh
+        run: |
+          # Универсальная библиотека C (UCRT) — кладём внутрь .exe, чтобы программа
+          # запускалась и на Windows 7 без обновления KB2999226.
+          $ucrt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Recurse -Directory -ErrorAction SilentlyContinue |
+                  Where-Object { $_.FullName -match 'ucrt\\DLLs\\x86$' } | Select-Object -First 1
+          $extra = @()
+          if ($ucrt) {
+            Write-Host "UCRT: $($ucrt.FullName)"
+            $extra = @('--add-binary', "$($ucrt.FullName)\*.dll;.")
+          } else {
+            Write-Warning "UCRT не найдена — на Windows 7 понадобится обновление KB2999226"
+          }
+          pyinstaller --noconfirm --onefile --windowed --name FabryPerot `
+            --icon assets/icon.ico --version-file packaging/windows/version.txt `
+            --exclude-module tkinter --exclude-module PyQt6 @extra run.py
+      - name: Selftest .exe
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $p = Start-Process dist\FabryPerot.exe -ArgumentList '--selftest' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "selftest failed: $($p.ExitCode)" }
+          Rename-Item dist\FabryPerot.exe FabryPerot-Windows-7-11.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabryPerot-Windows-7-11
+          path: dist/FabryPerot-Windows-7-11.exe
+
+  # macOS — приложение .app в образе .dmg.
+  # Отдельно для Apple Silicon (M1–M4) и для Intel.
+  macos:
+    name: macOS (${{ matrix.arch }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            arch: AppleSilicon
+          - os: macos-15-intel
+            arch: Intel
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements/modern.txt -r requirements/build.txt pyinstaller==6.10.0
+      - name: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -v tests
+      - name: Build .app
+        run: |
+          pyinstaller --noconfirm --windowed --name "Fabry-Perot" \
+            --icon assets/icon.icns --osx-bundle-identifier ru.bmstu.self.fabryperot \
+            --exclude-module tkinter --exclude-module PyQt5 run.py
+          /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string 'Фабри — Перо'" "dist/Fabry-Perot.app/Contents/Info.plist" || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(python -c 'import fabry_perot; print(fabry_perot.__version__)')" "dist/Fabry-Perot.app/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string 11.0" "dist/Fabry-Perot.app/Contents/Info.plist" || true
+          codesign --force --deep --sign - "dist/Fabry-Perot.app"
+      - name: Selftest .app
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: dist/Fabry-Perot.app/Contents/MacOS/Fabry-Perot --selftest
+      - name: Build .dmg
+        run: |
+          mkdir dmg
+          cp -R "dist/Fabry-Perot.app" dmg/
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname "Fabry-Perot" -srcfolder dmg -ov -format UDZO \
+            "FabryPerot-macOS-${{ matrix.arch }}.dmg"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabryPerot-macOS-${{ matrix.arch }}
+          path: FabryPerot-macOS-${{ matrix.arch }}.dmg
+
+  # Linux (x86-64) — один исполняемый файл + значок, ярлык и install.sh.
+  # Собирается на Ubuntu 22.04: работает на Ubuntu 22.04+, Debian 12+, Fedora 36+ и новее.
+  linux:
+    name: Linux
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: System libraries for Qt (попадут внутрь сборки)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 libfontconfig1 \
+            libdbus-1-3 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 \
+            libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 fonts-dejavu-core
+      - run: pip install -r requirements/modern.txt -r requirements/build.txt pyinstaller==6.10.0
+      - name: pytest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -v tests
+      - name: Build
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name FabryPerot \
+            --exclude-module tkinter --exclude-module PyQt5 run.py
+      - name: Selftest
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: dist/FabryPerot --selftest
+      - name: Package .tar.gz
+        run: |
+          mkdir -p pkg/FabryPerot
+          cp dist/FabryPerot pkg/FabryPerot/
+          cp assets/icon.png pkg/FabryPerot/fabry-perot.png
+          cp packaging/linux/fabry-perot.desktop packaging/linux/install.sh pkg/FabryPerot/
+          chmod +x pkg/FabryPerot/FabryPerot pkg/FabryPerot/install.sh
+          tar -C pkg -czf FabryPerot-Linux-x86_64.tar.gz FabryPerot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabryPerot-Linux-x86_64
+          path: FabryPerot-Linux-x86_64.tar.gz
+
+  # Для тегов v* — выложить все сборки в Releases.
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, macos, linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: out/*
+          generate_release_notes: true

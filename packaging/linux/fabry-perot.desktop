@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Fabry-Perot Interferometer
+Name[ru]=Интерферометр Фабри — Перо
+Comment=Interactive Fabry-Perot interferometer model
+Comment[ru]=Интерактивная модель интерферометра Фабри — Перо
+Exec=FabryPerot
+Icon=fabry-perot
+Terminal=false
+Categories=Education;Science;Physics;
