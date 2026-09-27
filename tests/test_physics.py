@@ -62,3 +62,45 @@ def test_seamless_shift_is_multiple_of_half_wave():
     shift = ph.seamless_shift(LAM, 1.5, 1000e-9)
     step = LAM / 3
     assert shift <= 1000e-9 and math.isclose(shift / step, round(shift / step))
+
+
+def test_airy_mean_matches_dense_average():
+    """Точное среднее по первообразной совпадает с усреднением по миллиону точек."""
+    F = ph.coefficient_f(0.95)
+    for a, b in [(1e5 + 0.1, 1e5 + 7.3), (2e6, 2e6 - 5.5), (3.0, 3.0 + 1e-3), (10.0, 10.0 + 1e-12)]:
+        x = np.linspace(a, b, 1_000_001)
+        dense = ph.airy(x, F).mean()
+        exact = ph.airy_mean(np.array([a]), np.array([b]), F)[0]
+        assert exact == pytest.approx(dense, rel=1e-4)
+
+
+def test_airy_range_contains_every_sample():
+    """Наименьшее и наибольшее значение на отрезке охватывают все точки внутри него."""
+    F = ph.coefficient_f(0.99)
+    edges = np.linspace(1e5, 1e5 + 40, 201)
+    lo, hi = ph.airy_range(edges, F)
+    x = np.linspace(edges[0], edges[-1], 400_001)
+    col = np.minimum(((x - edges[0]) / (edges[1] - edges[0])).astype(int), 199)
+    T = ph.airy(x, F)
+    assert np.all(T >= lo[col] - 1e-12) and np.all(T <= hi[col] + 1e-12)
+    # и пики действительно доходят до 1 там, где они есть
+    assert hi.max() == 1.0
+
+
+def test_measured_rings_match_formula():
+    F = ph.coefficient_f(0.9)
+    measured, near = ph.measure_rings(LAM, D, N, F_LENS, 0.01, F, 1.0)
+    predicted = ph.ring_radii(LAM, D, N, F_LENS, 0.01)
+    predicted = predicted[predicted > near]
+    assert len(measured) == len(predicted) == 19
+    assert np.allclose(measured, predicted, rtol=1e-5)
+
+
+def test_many_thin_rings_are_all_found():
+    """Даже десятки тысяч очень тонких колец считаются все — ни одно не пропадает."""
+    lam, d, n, f, half = 380e-9, 0.02, 2.0, 0.05, 0.1
+    measured, near = ph.measure_rings(lam, d, n, f, half, ph.coefficient_f(0.99), 1.0)
+    predicted = ph.ring_radii(lam, d, n, f, half, limit=10 ** 6)
+    predicted = predicted[predicted > near]
+    assert abs(len(measured) - len(predicted)) <= 1
+    assert np.allclose(measured[:50], predicted[:50], rtol=1e-4)

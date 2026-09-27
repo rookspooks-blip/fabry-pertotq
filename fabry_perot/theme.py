@@ -103,9 +103,9 @@ QLabel#h2 {{ font-size: 16px; font-weight: 700; }}
 QLabel#cardTitle {{ font-size: 11px; font-weight: 700; color: {p['muted']}; }}
 QLabel#limits {{ color: {p['faint']}; font-size: 11px; }}
 QLabel#tileCaption {{ color: {p['muted']}; font-size: 12px; }}
-QLabel#tileValue {{ font-size: 22px; font-weight: 700; }}
+QLabel#tileValue {{ font-size: 21px; font-weight: 700; }}
 QLabel#tileNote {{ color: {p['muted']}; font-size: 11px; }}
-QLabel#badge {{ border-radius: 8px; padding: 1px 7px; font-size: 11px; font-weight: 600; }}
+QLabel#badge {{ border-radius: 7px; padding: 0px 4px; font-size: 10px; font-weight: 600; }}
 QLabel#badge[kind="ok"] {{ background: {p['ok'][0]}; color: {p['ok'][1]}; }}
 QLabel#badge[kind="warn"] {{ background: {p['warn'][0]}; color: {p['warn'][1]}; }}
 QLabel#badge[kind="bad"] {{ background: {p['bad'][0]}; color: {p['bad'][1]}; }}

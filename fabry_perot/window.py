@@ -6,13 +6,13 @@ import numpy as np
 
 from . import APP_TITLE, __version__
 from .fmt import length, num, pick_unit, plain, rel_error, short, with_unit, div
-from .physics import (C, airy, find_peaks, measure_curve, phase, ring_radii, ring_samples,
-                      seamless_shift, theory)
+from .physics import (C, airy, airy_range, curve_samples, measure_curve, measure_rings, phase,
+                      ring_radii, seamless_shift, theory)
 from .params import LINE2, PARAMS, PRESETS, TILES, ParamRow
 from .qt import QAction, QBrush, QColor, QImage, QPainter, QPixmap, Qt, QtCore, QtGui, QtWidgets
 from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_palette,
                     stylesheet, wavelength_rgb)
-from .widgets import Plot, RingView, ToggleSwitch, card_title, make_card, polish
+from .widgets import Curve, Plot, RingView, ToggleSwitch, card_title, make_card, polish
 
 TWEEN_MS = 850         # сколько длится плавный переход к новому значению, мс
 
@@ -198,7 +198,7 @@ class MainWindow(QtWidgets.QMainWindow):
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setMinimumWidth(panel.sizeHint().width() + 26)
+        scroll.setMinimumWidth(min(panel.sizeHint().width() + 26, 340))
         scroll.setMaximumWidth(panel.sizeHint().width() + 90)
         return scroll
 
@@ -214,7 +214,7 @@ class MainWindow(QtWidgets.QMainWindow):
         screen, layout = make_card(None, "screen")
         layout.setContentsMargins(12, 10, 12, 12)
         top = QtWidgets.QHBoxLayout()
-        top.addWidget(card_title("Картина колец на экране"))
+        top.addWidget(card_title("Кольца на экране"))
         top.addStretch()
         self.glow_switch = ToggleSwitch("свечение", "#C9D3DF")
         self.glow_switch.setChecked(True)
@@ -252,7 +252,7 @@ class MainWindow(QtWidgets.QMainWindow):
             tile = QtWidgets.QFrame()
             tile.setObjectName("tile")
             box = QtWidgets.QVBoxLayout(tile)
-            box.setContentsMargins(12, 10, 12, 10)
+            box.setContentsMargins(10, 9, 10, 9)
             box.setSpacing(2)
             caption, value = QtWidgets.QLabel(name), QtWidgets.QLabel()
             caption.setObjectName("tileCaption")
@@ -261,13 +261,14 @@ class MainWindow(QtWidgets.QMainWindow):
             note.setObjectName("tileNote")
             badge.setObjectName("badge")
             badge.setToolTip("Расхождение измерения по графику и формулы")
-            line = QtWidgets.QHBoxLayout()         # крупное число и рядом значок расхождения
-            line.addWidget(value)
-            line.addStretch()
-            line.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
+            foot = QtWidgets.QHBoxLayout()         # формула и справа значок расхождения
+            foot.setSpacing(4)
+            foot.addWidget(note)
+            foot.addStretch()
+            foot.addWidget(badge, 0, Qt.AlignmentFlag.AlignVCenter)
             box.addWidget(caption)
-            box.addLayout(line)
-            box.addWidget(note)
+            box.addWidget(value)
+            box.addLayout(foot)
             tiles.addWidget(tile, i // 2, i % 2)
             self.tiles.append((value, note, badge))
         column.addLayout(tiles)
@@ -287,6 +288,8 @@ class MainWindow(QtWidgets.QMainWindow):
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # высоту строк пересчитываем, только когда меняется ширина столбца (а не на каждом кадре)
+        header.sectionResized.connect(lambda *args: self.table.resizeRowsToContents())
         column.addWidget(self.table, 1)
         note = QtWidgets.QLabel("«По графику» — программа сама меряет пики на кривых, «по формуле» — "
                                 "теория. Формула видна при наведении мыши на строку.")
@@ -418,44 +421,54 @@ class MainWindow(QtWidgets.QMainWindow):
         F, fsr, tmax = th["F"], th["fsr"], th["tmax"]
         self.lam2_label.setText(f"λ₂ = {num(lam2 * 1e9, 9)} нм" if two else "Вторая линия выключена")
 
-        # 1. График пропускания T(λ): по полтора Δλ слева и справа от линий.
-        #    Точек берём столько, чтобы на ширину пика пришлось не меньше 30.
-        lo, hi = -1.5 * fsr, (lam2 - lam if two else 0.0) + 1.5 * fsr
-        count = int(min(max(30 * (hi - lo) / (th["width"] or fsr), 20000), 2e6))
-        x = lam + np.linspace(lo, hi, count)
+        # 1. Измерения по графику T(λ): по полтора Δλ слева и справа от λ₁,
+        #    не меньше 30 точек на ширину пика (это десятки тысяч точек, не больше).
+        x = lam + np.linspace(-1.5 * fsr, 1.5 * fsr, curve_samples(3 * fsr, th["width"], fsr))
         T = airy(phase(x, d, n), F, tmax)
         meas = measure_curve(x, T, lam)
         self.curve = (x, T)
-        self.show_transmission(lam, lam2 if two else None, lo, hi, x, T, meas)
+        # а сам график рисуется по формуле — точно при любом масштабе (см. Plot.draw_curve)
+        lo, hi = -1.5 * fsr, (lam2 - lam if two else 0.0) + 1.5 * fsr
+        self.show_transmission(lam, lam2 if two else None, lo, hi, meas, d, n, F, tmax)
 
-        # 2. Кольца: яркость T(r) вдоль радиуса круглого экрана (с небольшим запасом)
-        r = np.linspace(0.0, 1.05 * half, ring_samples(lam, d, n, F, f, 1.05 * half))
-        sin_out = r / np.hypot(r, f)               # sin θ, где tg θ = r / f
+        # 2. Кольца: картинка считается по формуле прямо в виджете
         lines = [(lam, "λ₁")] + ([(lam2, "λ₂")] if two else [])
-        layers = [(airy(phase(wl, d, n, sin_out), F, tmax), wavelength_rgb(wl * 1e9)) for wl, _ in lines]
         caption = f"экран ⌀ {short(round(2 * v['screen'], 1))} мм · f = {short(round(v['f']))} мм"
-        self.ring_view.show_data(r, layers, half, caption, (lam, d, n, f))
+        self.ring_view.show_data([(wl, wavelength_rgb(wl * 1e9)) for wl, _ in lines], half, caption,
+                                 (d, n, f), F, tmax)
 
-        # 3. Радиусы колец: по картинке (максимумы профиля) и по формуле
-        near = 2 * (r[1] - r[0])                   # «кольцо» в самом центре не считаем
-        found = find_peaks(r, layers[0][0])[1]
-        measured = found[(found > near) & (found <= half)]
+        # 3. Радиусы колец: по картинке (максимумы яркости) и по формуле
+        measured, near = measure_rings(lam, d, n, f, half, F, tmax)   # «кольцо» в самом центре не считаем
         predicted = ring_radii(lam, d, n, f, half)
         predicted = predicted[predicted > near]
         self.radii = (measured, predicted)
         marks = [(rk * 1e3, THEME["muted"], label) for rk, label in zip(measured[:2], ("r₁", "r₂"))]
         # разрез: у каждой линии своя кривая своего цвета; две линии делят свет пополам
-        curves = [(r * 1e3, T_ / len(layers), line_color(wl * 1e9), name if two else "I / I₀")
-                  for (T_, _), (wl, name) in zip(layers, lines)]
+        share = len(lines)
+
+        def ring_curve(wl, name):
+            def sin_out(x_mm):
+                r = x_mm * 1e-3
+                return r / np.hypot(r, f)
+
+            def value(x_mm):
+                return airy(phase(wl, d, n, sin_out(x_mm)), F, tmax) / share
+
+            def span(edges):
+                lo_, hi_ = airy_range(phase(wl, d, n, sin_out(edges)), F, tmax)
+                return lo_ / share, hi_ / share
+            return Curve(value, span, line_color(wl * 1e9), name if two else "I / I₀")
+
         self.plot_r.show_data("Расстояние от центра r, мм", "мм", (0.0, v["screen"]), (0.0, 1.15),
-                              curves, marks)
+                              [ring_curve(wl, name) for wl, name in lines], marks)
 
         self.fill_table(lam, th, meas, measured, predicted)
         kind, text = self.verdict_text(two, lam2 - lam, th)
         self.verdict.setText(text)
-        polish(self.verdict, kind)                 # цвет подложки: серый, зелёный или красный
+        if self.verdict.property("kind") != kind:
+            polish(self.verdict, kind)             # цвет подложки: серый, зелёный или красный
 
-    def show_transmission(self, lam, lam2, lo, hi, x, T, meas):
+    def show_transmission(self, lam, lam2, lo, hi, meas, d, n, F, tmax):
         """График T(λ): по оси — отступ от λ₁; метки линий и измерения Δλ и w."""
         unit, scale = ("нм", 1e-9) if hi - lo >= 2e-9 else ("пм", 1e-12)
         color = line_color(lam * 1e9)
@@ -469,8 +482,10 @@ class MainWindow(QtWidgets.QMainWindow):
         if meas["half"]:
             a, b, level = meas["half"]
             spans.append(((a - lam) / scale, (b - lam) / scale, level, f"w = {length(meas['width'])}"))
+        curve = Curve(lambda x: airy(phase(lam + x * scale, d, n), F, tmax),
+                      lambda edges: airy_range(phase(lam + edges * scale, d, n), F, tmax), color, "T")
         self.plot_t.show_data(f"Отступ от λ₁: λ − λ₁, {unit}", unit, (lo / scale, hi / scale), (0.0, 1.15),
-                              [((x - lam) / scale, T, color, "T")], marks, spans)
+                              [curve], marks, spans)
 
     def fill_table(self, lam, th, meas, measured, predicted):
         """Таблица: что намерено по графикам и что дают формулы."""
@@ -525,19 +540,21 @@ class MainWindow(QtWidgets.QMainWindow):
                     item.setForeground(QBrush(THEME.color("text")))
                 elif j == 2:
                     item.setForeground(QBrush(THEME.color("muted")))
-        self.table.resizeRowsToContents()
+        if not self.tweens and not self.scan_timer.isActive():
+            self.table.resizeRowsToContents()      # высота строк — только когда картина стоит
         # плитки над таблицей: крупно — по графику, мелко — по формуле и расхождение
         rows = {name: (got, expect, unit) for name, got, expect, unit, _ in self.results}
         for (name, _), (value, note, badge) in zip(TILES, self.tiles):
             got, expect, unit = rows[name]
             value.setText(with_unit(got, unit))
-            note.setText("по формуле: " + with_unit(expect, unit))
+            note.setText("теория " + with_unit(expect, unit))
+            note.setToolTip("Значение по формуле")
             err = rel_error(got, expect)
             if err is None:
                 badge.setText("")
                 kind = "none"
             else:
-                badge.setText("< 0,01 %" if err < 1e-4 else f"±{num(100 * err, 2)} %")
+                badge.setText("<0,01%" if err < 1e-4 else f"{num(100 * err, 2)}%")
                 kind = "ok" if err < 0.01 else ("warn" if err < 0.05 else "bad")
             if badge.property("kind") != kind:
                 polish(badge, kind)

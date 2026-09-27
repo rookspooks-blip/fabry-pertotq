@@ -48,6 +48,43 @@ def airy(delta, F, tmax=1.0):
     return tmax / (1.0 + F * np.sin(delta / 2.0) ** 2)
 
 
+def airy_mean(d1, d2, F, tmax=1.0):
+    """Среднее пропускание на отрезке фазы [δ₁, δ₂] — точно, без перебора точек.
+
+    У функции Эйри есть первообразная: на каждом периоде
+    ∫ dδ / (1 + F·sin²(δ/2)) = (2/√(1+F))·arctg(√(1+F)·tg(δ/2)),
+    а за целый период набегает 2π/√(1+F). Так яркость пикселя экрана, внутри
+    которого помещаются хоть тысячи тонких колец, считается одной формулой.
+    """
+    q = np.sqrt(1.0 + F)
+    k1 = np.floor(d1 / (2 * np.pi) + 0.5)          # номер периода: δ = 2πk + φ, φ ∈ [−π, π)
+    k2 = np.floor(d2 / (2 * np.pi) + 0.5)
+    a1 = np.arctan(q * np.tan((d1 - 2 * np.pi * k1) / 2))
+    a2 = np.arctan(q * np.tan((d2 - 2 * np.pi * k2) / 2))
+    width = d2 - d1
+    tiny = np.abs(width) < 1e-9                    # отрезок почти нулевой — берём значение в середине
+    mean = (2 / q) * (np.pi * (k2 - k1) + (a2 - a1)) / np.where(tiny, 1.0, width)
+    return tmax * np.where(tiny, airy((d1 + d2) / 2, F), mean)
+
+
+def airy_range(edges, F, tmax=1.0):
+    """Наименьшее и наибольшее пропускание на каждом отрезке между соседними фазами edges.
+
+    Внутри отрезка функция Эйри достигает Tmax, если на нём есть δ = 2πm, и
+    Tmax/(1 + F), если есть δ = π(2m + 1); иначе крайние значения — на концах.
+    По этим парам график рисуется точно при любом масштабе: узкий пик не
+    «проскочит» между точками, сколько бы пиков ни было.
+    """
+    a, b = np.minimum(edges[:-1], edges[1:]), np.maximum(edges[:-1], edges[1:])
+    ta, tb = airy(a, F, tmax), airy(b, F, tmax)
+    period = 2 * np.pi
+    has_peak = np.floor(b / period) * period >= a
+    has_dip = np.floor((b - np.pi) / period) * period + np.pi >= a
+    hi = np.where(has_peak, tmax, np.maximum(ta, tb))
+    lo = np.where(has_dip, tmax / (1 + F), np.minimum(ta, tb))
+    return lo, hi
+
+
 def order_at(r, lam, d, n, f):
     """Порядок интерференции в точке экрана на расстоянии r от центра: 2d·√(n² − sin²θ) / λ."""
     s = r / math.hypot(r, f)
@@ -98,15 +135,6 @@ def ring_radii(lam, d, n, f, r_max, limit=500):
     return r[r <= r_max]
 
 
-def ring_samples(lam, d, n, F, f, r_max):
-    """Сколько точек брать по радиусу, чтобы не «проскочить» тонкое кольцо."""
-    edge = r_max / math.hypot(r_max, f)                    # sin θ на краю
-    change = phase(lam, d, n) - phase(lam, d, n, edge)     # изменение фазы от центра до края
-    width = 4 * math.asin(1 / math.sqrt(F)) if F > 1 else 2 * math.pi
-    # у края кольца теснее всего: 24 точки на ширину кольца в среднем ≈ 12 у края
-    return int(min(max(24 * change / width, 4000), 2e6))
-
-
 def find_peaks(x, y):
     """Максимумы кривой: номера точек, уточнённые положения и высоты.
 
@@ -147,6 +175,52 @@ def measure_curve(x, T, x_line):
         res["width"] = x_right - x_left
         res["half"] = (x_left, x_right, half)
     return res
+
+
+def curve_samples(span, width, fsr):
+    """Сколько точек брать для измерений по графику T(λ): не меньше 30 на ширину пика."""
+    return int(min(max(30 * span / (width or fsr), 20000), 2e6))
+
+
+def measure_rings(lam, d, n, f, r_max, F, tmax, per_period=6, cap=150000, refine=300):
+    """Светлые кольца «по картинке»: максимумы яркости от центра до края экрана.
+
+    Яркость просматривается равномерно по u = sin²θ: фаза почти линейна по u,
+    поэтому на каждое кольцо приходится одинаковое число точек (per_period),
+    и ни одно кольцо не пропадает. Каждый найденный максимум (первые refine)
+    уточняется трижды: вокруг него берутся всё более частые точки — как если
+    бы мы увеличивали картинку в микроскоп. Возвращает (радиусы, м; «центр», м):
+    кольца ближе «центра» не считаются, их не отличить от яркого пятна в центре.
+    """
+    s2_max = (r_max / math.hypot(r_max, f)) ** 2
+    periods = (phase(lam, d, n) - phase(lam, d, n, math.sqrt(s2_max))) / (2 * np.pi)
+    count = int(min(max(per_period * periods, 2000), cap))
+    u = np.linspace(0.0, s2_max, count)
+    du = u[1] - u[0]
+
+    def bright(uu):
+        return airy(4.0 * np.pi * d * np.sqrt(n * n - uu) / lam, F, tmax)
+
+    T = bright(u)
+    near_u = 2 * du
+    near = f * math.sqrt(near_u / (1 - near_u))
+    if tmax <= 0:
+        return np.zeros(0), near
+    idx = np.flatnonzero((T[1:-1] > T[:-2]) & (T[1:-1] >= T[2:])) + 1
+    peaks = u[idx]
+    if idx.size:
+        # уточнение: три раза по 33 точки вокруг лучшей точки, шаг каждый раз в 16 раз мельче
+        center, step = peaks[:refine].copy(), du
+        offsets = np.linspace(-1.0, 1.0, 33)
+        for _ in range(3):
+            grid = np.clip(center[:, None] + step * offsets[None, :], 0.0, s2_max)
+            values = bright(grid)
+            best = np.argmax(values, axis=1)
+            center = grid[np.arange(len(center)), best]
+            step = step / 16
+        peaks[:refine] = center
+    peaks = peaks[(peaks > near_u)]
+    return f * np.sqrt(peaks / (1 - peaks)), near
 
 
 def seamless_shift(lam, n, limit):

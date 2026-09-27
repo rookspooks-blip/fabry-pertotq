@@ -5,9 +5,9 @@ import math
 import numpy as np
 
 from .fmt import num, tick_text, ticks
-from .physics import order_at
-from .qt import (QBrush, QColor, QFont, QImage, QLinearGradient, QLineF, QPainter, QPen, QPixmap,
-                 QPointF, QPolygonF, QRectF, QSize, Qt, QtGui, QtWidgets, Signal, event_pos)
+from .physics import airy, airy_mean, order_at, phase
+from .qt import (QColor, QFont, QImage, QPainter, QPen, QPixmap, QPointF, QRectF, QSize, Qt, QtGui,
+                 QtWidgets, Signal, event_pos)
 from .theme import THEME
 
 
@@ -41,12 +41,35 @@ def pixel_font(widget, px, bold=False):
     return font
 
 
+class Curve:
+    """Кривая, заданная формулой, а не набором точек.
+
+    value(x) — значения в точках x (массив numpy);
+    span(edges) — наименьшее и наибольшее значение на каждом отрезке между
+    соседними edges. По span график рисуется точно при любом масштабе: для
+    каждого столбца пикселей известно, где кривая в нём выше и ниже всего.
+    """
+
+    def __init__(self, value, span, color, name):
+        self.value, self.span, self.color, self.name = value, span, color, name
+
+
+def color_table(color):
+    """Таблица 256 цветов «color с прозрачностью 0…255» в формате ARGB32 Premultiplied."""
+    c = QColor(color)
+    alpha = np.arange(256, dtype=np.uint32)
+    r, g, b = ((alpha * k + 127) // 255 for k in (c.red(), c.green(), c.blue()))
+    return (alpha << 24) | (r << 16) | (g << 8) | b
+
+
 class Plot(QtWidgets.QWidget):
-    """График на QPainter: сетка, подписи, кривые, вертикальные метки и отрезки-измерения.
+    """График: сетка, подписи, кривые, вертикальные метки и отрезки-измерения.
 
     Узкий пик бывает тоньше пикселя. Чтобы он не пропал, для каждого столбца
-    пикселей берутся минимум и максимум всех точек, попавших в этот столбец,
-    и рисуется чёрточка между ними (так рисуют цифровые осциллографы).
+    пикселей по формуле находятся наибольшее и наименьшее значение кривой в
+    этом столбце, и закрашивается полоска между ними (так рисуют цифровые
+    осциллографы). Вся кривая с заливкой и свечением собирается как одна
+    картинка средствами numpy — это быстро и не зависит от числа пиков.
 
     Мышь: наведение — значения под курсором, колёсико — масштаб по горизонтали,
     перетаскивание — сдвиг, двойной щелчок — вернуть весь график.
@@ -71,7 +94,7 @@ class Plot(QtWidgets.QWidget):
         self.setCursor(Qt.CursorShape.CrossCursor)
 
     def show_data(self, xlabel, xunit, xlim, ylim, curves, marks=(), spans=()):
-        """curves: (x, y, цвет, имя); marks: (x, цвет, подпись); spans: (x1, x2, y, подпись)."""
+        """curves: [Curve]; marks: (x, цвет, подпись); spans: (x1, x2, y, подпись)."""
         self.xlabel, self.xunit, self.full, self.ylim = xlabel, xunit, xlim, ylim
         self.curves, self.marks, self.spans = list(curves), list(marks), list(spans)
         self.refresh()
@@ -136,15 +159,18 @@ class Plot(QtWidgets.QWidget):
         p.drawText(QPointF(20, 30), self.title)
 
         # легенда справа от заголовка: цветная чёрточка и имя кривой
+        title_end = 20 + p.fontMetrics().horizontalAdvance(self.title) + 16
         p.setFont(pixel_font(self, 12))
-        right = self.width() - 20
         legend = self.curves if len(self.curves) > 1 and self.hover is None else []
-        for x, y, color, name in reversed(legend):
-            width = p.fontMetrics().horizontalAdvance(name)
+        need = sum(p.fontMetrics().horizontalAdvance(c.name) + 40 for c in legend)
+        right = self.width() - 20
+        line = 30 if self.width() - 20 - need > title_end else 50    # не влезает — строкой ниже
+        for curve in reversed(legend):
+            width = p.fontMetrics().horizontalAdvance(curve.name)
             p.setPen(THEME.color("muted"))
-            p.drawText(QPointF(right - width, 30), name)
-            p.setPen(QPen(QColor(color), 3))
-            p.drawLine(QPointF(right - width - 22, 25), QPointF(right - width - 8, 25))
+            p.drawText(QPointF(right - width, line), curve.name)
+            p.setPen(QPen(QColor(curve.color), 3))
+            p.drawLine(QPointF(right - width - 22, line - 5), QPointF(right - width - 8, line - 5))
             right -= width + 40
 
         # сетка и подписи делений по горизонтали и вертикали
@@ -174,11 +200,9 @@ class Plot(QtWidgets.QWidget):
         p.drawText(QRectF(-120, -9, 240, 18), Qt.AlignmentFlag.AlignCenter, self.ylabel)
         p.restore()
 
-        # кривые рисуем только внутри поля графика
-        p.setClipRect(area.adjusted(0, -2, 0, 0))
-        for x, y, color, _ in self.curves:
-            self.draw_curve(p, area, x, y, QColor(color))
-        p.setClipping(False)
+        # кривые — готовыми картинками точно в поле графика
+        for curve in self.curves:
+            self.draw_curve(p, area, curve)
         p.setPen(QPen(THEME.color("axis"), 1))     # оси: только слева и снизу
         p.drawLine(area.bottomLeft(), area.bottomRight())
         p.drawLine(area.bottomLeft(), area.topLeft())
@@ -213,65 +237,53 @@ class Plot(QtWidgets.QWidget):
             top = a.y() - p.fontMetrics().height() - 12
             pill(p, left, top, label, THEME.color("surface", 235), orange, True)
 
-    def draw_curve(self, p, area, x, y, color):
-        """Кривая с заливкой: по минимумам и максимумам в столбцах пикселей или по точкам."""
+    def draw_curve(self, p, area, curve):
+        """Кривая с заливкой и свечением — картинка, посчитанная numpy по пикселям.
+
+        Для каждого пикселя поля считается, насколько он закрыт:
+          * линией — полоской от верха до низа кривой в этом столбце толщиной ~1,7 точки,
+            с плавным краем (сглаживание);
+          * заливкой — всё, что ниже кривой, с прозрачностью, тающей книзу;
+          * свечением (в тёмной теме) — мягким ореолом шириной ~3 точки вокруг линии.
+        Цвет у всей кривой один, поэтому пиксель — это только степень прозрачности,
+        а готовый цвет берётся из таблицы на 256 значений.
+        """
+        ratio = self.devicePixelRatioF()
+        width = max(int(round(area.width() * ratio)), 1)
+        height = max(int(round(area.height() * ratio)), 1)
         x0, x1 = self.view()
         y0, y1 = self.ylim
-        # берём только видимую часть (плюс по точке с краёв)
-        i0 = max(int(np.searchsorted(x, x0)) - 1, 0)
-        i1 = min(int(np.searchsorted(x, x1)) + 1, len(x))
-        x, y = x[i0:i1], y[i0:i1]
-        if x.size < 2:
-            return
-        px = area.left() + (x - x0) / (x1 - x0) * area.width()
-        scale = area.height() / (y1 - y0)
-        if x.size <= 2 * area.width():
-            # точек меньше, чем пикселей (график увеличен) — соединяем точки как есть
-            xs, top = px.tolist(), (area.bottom() - (y - y0) * scale).tolist()
-            lines = [QLineF(a, b, c, d) for a, b, c, d in zip(xs, top, xs[1:], top[1:])]
-        else:
-            col = np.floor(px - area.left()).astype(int)
-            start = np.flatnonzero(np.r_[True, col[1:] != col[:-1]])    # начало каждого столбца
-            low, high = np.minimum.reduceat(y, start), np.maximum.reduceat(y, start)
-            xs = (area.left() + col[start] + 0.5).tolist()
-            top = (area.bottom() - (high - y0) * scale).tolist()
-            bottom = (area.bottom() - (low - y0) * scale).tolist()
-            # отрезки от столбца к соседнему и вертикальные чёрточки там, где кривая
-            # внутри столбца поднимается и падает
-            lines = [QLineF(a, b, c, d) for a, b, c, d in zip(xs, top, xs[1:], top[1:])]
-            lines += [QLineF(a, b, a, c) for a, b, c in zip(xs, top, bottom) if c - b > 1]
-
-        # 1. Заливка под кривой: сверху цвет кривой, книзу прозрачная. Сглаживание ей не нужно.
-        grad = QLinearGradient(0, area.top(), 0, area.bottom())
-        c1, c2 = QColor(color), QColor(color)
-        c1.setAlpha(90 if THEME.dark else 60)
-        c2.setAlpha(8)
-        grad.setColorAt(0, c1)
-        grad.setColorAt(1, c2)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, False)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(grad))
-        p.drawPolygon(QPolygonF([QPointF(xs[0], area.bottom())]
-                                + [QPointF(a, b) for a, b in zip(xs, top)]
-                                + [QPointF(xs[-1], area.bottom())]))
-
-        # 2. Сама кривая. Перо «косметическое»: его толщина задаётся прямо в точках
-        #    экрана. На Retina-экране (масштаб 2) обычное перо превращает каждую линию
-        #    в сложную фигуру, и узкие пики рисуются в десятки раз медленнее.
-        ratio = self.devicePixelRatioF()
-        p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        if THEME["glow"]:                          # в тёмной теме — мягкое свечение под линией
-            glow = QColor(color)
-            glow.setAlpha(55)
-            pen = QPen(glow, 5 * ratio)
-            pen.setCosmetic(True)
-            p.setPen(pen)
-            p.drawLines(lines)
-        pen = QPen(color, 1.7 * ratio)
-        pen.setCosmetic(True)
-        p.setPen(pen)
-        p.drawLines(lines)
+        lo, hi = curve.span(np.linspace(x0, x1, width + 1))
+        scale = height / (y1 - y0)
+        top = ((y1 - hi) * scale).astype(np.float32)[None, :]     # верх кривой в столбце, пиксели
+        bottom = ((y1 - lo) * scale).astype(np.float32)[None, :]  # низ кривой в столбце
+        rows = np.arange(height, dtype=np.float32)[:, None]
+        half = np.float32(0.95 * ratio)
+        # линия: какая доля пикселя [row, row + 1] попадает в полоску [top − half, bottom + half]
+        line = np.minimum(rows + 1, bottom + half)
+        line -= np.maximum(rows, top - half)
+        np.clip(line, 0, 1, out=line)
+        # заливка: доля пикселя ниже верха кривой × прозрачность, тающая книзу
+        fill = rows + 1 - top
+        np.clip(fill, 0, 1, out=fill)
+        fade = np.linspace(0.36 if THEME.dark else 0.24, 0.03, height, dtype=np.float32)[:, None]
+        fill *= fade
+        # прозрачности складываются как у наложенных плёнок: 1 − (1 − a)(1 − b)(1 − c)
+        clear = 1 - line
+        clear *= 1 - fill
+        if THEME["glow"]:
+            dist = np.maximum(top - rows - 0.5, rows + 0.5 - bottom)   # расстояние до полоски
+            dist /= np.float32(3.2 * ratio)
+            np.clip(dist, 0, 1, out=dist)
+            glow = 1 - dist
+            glow *= glow
+            glow *= np.float32(0.3)
+            clear *= 1 - glow
+        alpha = ((1 - clear) * 255 + 0.5).astype(np.uint8)
+        argb = color_table(curve.color)[alpha]
+        image = QImage(argb.tobytes(), width, height, 4 * width, QImage.Format.Format_ARGB32_Premultiplied)
+        image.setDevicePixelRatio(ratio)
+        p.drawImage(area.topLeft(), image)
 
     def draw_overlay(self, p):
         """Поверх готового рисунка: перекрестие со значениями и значок масштаба."""
@@ -295,22 +307,20 @@ class Plot(QtWidgets.QWidget):
         p.setPen(pen)
         p.drawLine(QPointF(X, area.top()), QPointF(X, area.bottom()))
         parts = [f"{self.xname} = {num(h)} {self.xunit}".strip()]
-        for x, y, color, name in self.curves:
-            if not x[0] <= h <= x[-1]:
-                continue
-            v = float(np.interp(h, x, y))
+        for curve in self.curves:
+            v = float(curve.value(np.array([h]))[0])
             Y = min(max(self.to_y(area, v), area.top()), area.bottom())
             p.setPen(QPen(THEME.color("surface"), 2))
-            p.setBrush(QColor(color))
+            p.setBrush(QColor(curve.color))
             p.drawEllipse(QPointF(X, Y), 4.5, 4.5)
-            parts.append(f"{name} = {num(v, 3)}")
+            parts.append(f"{curve.name} = {num(v, 3)}")
         # значения пишем в строке заголовка, справа — там они не закрывают измерения
         text = "   ".join(parts)
         width = p.fontMetrics().horizontalAdvance(text) + 14
         title = pixel_font(self, 14, True)
         title_end = 20 + QtGui.QFontMetrics(title).horizontalAdvance(self.title) + 12
         top = 14 if self.width() - width - 16 > title_end else 36
-        pill(p, self.width() - width - 16, top, text, THEME.color("raised"), THEME["text"])
+        pill(p, max(self.width() - width - 16, 8), top, text, THEME.color("raised"), THEME["text"])
 
     # --- мышь ---
     def mousePressEvent(self, event):
@@ -364,7 +374,9 @@ class RingView(QtWidgets.QWidget):
     """Картина колец на круглом экране в фокусе линзы — как в окуляре.
 
     Яркость пикселя — среднее значение T по его ширине: у края кольца бывают
-    тоньше пикселя, и без усреднения картинка покрылась бы муаром.
+    тоньше пикселя, и без усреднения картинка покрылась бы муаром. Среднее
+    считается точно, по первообразной функции Эйри (physics.airy_mean), —
+    одной формулой на пиксель, сколько бы колец в него ни попало.
     """
 
     hovered = Signal(object)                       # радиус под курсором в мм или None
@@ -379,10 +391,10 @@ class RingView(QtWidgets.QWidget):
         self.glow = True
         self.hover = None                          # радиус под курсором, м
 
-    def show_data(self, r, layers, half, caption, geom):
-        """r — радиусы, м; layers — [(T(r), цвет)] по одному на линию; half — радиус экрана, м;
-        geom — (λ, d, n, f) для подсказки о порядке кольца."""
-        self.data = (r, layers, half, caption, geom)
+    def show_data(self, lines, half, caption, geom, F, tmax):
+        """lines — [(λ, цвет)] по одной на спектральную линию; half — радиус экрана, м;
+        geom — (d, n, f); F и Tmax — как в функции Эйри."""
+        self.data = (lines, half, caption, geom, F, tmax)
         self.image = None                          # старую картинку выбрасываем
         self.update()
 
@@ -403,14 +415,21 @@ class RingView(QtWidgets.QWidget):
         size = min(self.width(), self.height()) - 12
         return size, (self.width() - size) / 2, (self.height() - size) / 2
 
+    def brightness(self, r):
+        """Яркость в точке экрана на расстоянии r (м) от центра: две линии делят свет пополам."""
+        lines, _, _, (d, n, f), F, tmax = self.data
+        s = r / np.hypot(r, f)                     # sin θ, где tg θ = r / f
+        return sum(airy(phase(lam, d, n, s), F, tmax) for lam, _ in lines) / len(lines)
+
     def make_image(self, side):
         """Круглая картинка диаметром side пикселей (за кругом — прозрачно).
 
         Цвет зависит только от расстояния до центра. Поэтому сначала считаем
         цвет для каждого расстояния с шагом в четверть пикселя (это короткая
-        «таблица цветов»), а потом каждый пиксель просто берёт цвет из неё.
+        «таблица цветов», несколько тысяч значений), а потом каждый пиксель
+        просто берёт цвет из неё.
         """
-        r, layers, half = self.data[:3]
+        lines, half, _, (d, n, f), F, tmax = self.data
         index = self.index.get(side)
         if index is None:
             # расстояние каждого пикселя от центра в четвертях пикселя; зависит
@@ -420,9 +439,10 @@ class RingView(QtWidgets.QWidget):
             self.index = {side: index}
         count = int(index.max()) + 1
         pixel = 2 * half / side                    # размер одного пикселя на экране, м
-        radius = (np.arange(count) + 0.5) * pixel / 4    # расстояния из таблицы, м
-        step = r[1] - r[0]
-        k = max(1, int(round(pixel / step)))       # сколько точек профиля в одном пикселе
+        center = (np.arange(count) + 0.5) * pixel / 4    # расстояния из таблицы, м
+        # каждому расстоянию — средняя яркость по окну шириной в пиксель вокруг него
+        r1, r2 = np.maximum(center - pixel / 2, 0.0), center + pixel / 2
+        s1, s2 = r1 / np.hypot(r1, f), r2 / np.hypot(r2, f)
         if self.glow:
             # свечение: к яркости добавляем её размытую копию (как ореол на фотографии)
             sigma = max(side / 180, 2.0)           # в четвертях пикселя
@@ -430,25 +450,41 @@ class RingView(QtWidgets.QWidget):
             kernel = np.exp(-0.5 * (np.arange(-half_k, half_k + 1) / sigma) ** 2)
             kernel /= kernel.sum()
         rgb = np.zeros((count, 3))
-        for T, color in layers:
-            # скользящее среднее по k точкам через накопленные суммы — быстро
-            sums = np.concatenate(([0.0], np.cumsum(T)))
-            mean = (sums[k:] - sums[:-k]) / k
-            centers = r[:len(mean)] + (k - 1) / 2 * step
-            bright = np.interp(radius, centers, mean) / len(layers)   # две линии делят свет пополам
+        for lam, color in lines:
+            bright = airy_mean(phase(lam, d, n, s1), phase(lam, d, n, s2), F, tmax) / len(lines)
             if self.glow:
                 padded = np.pad(bright, half_k, mode="reflect")
                 bright = bright + 0.6 * np.convolve(padded, kernel, mode="valid")
             # гамма монитора: без неё тусклые кольца слились бы с чёрным фоном
             rgb += np.clip(bright, 0, 1)[:, None] ** (1 / 2.2) * np.array(color)
-        rgb = np.clip(rgb, 0, 1)
-        # край круга сглаженный: прозрачность плавно растёт на последнем пикселе
+        # край круга сглаженный: прозрачность плавно растёт на последнем пикселе.
+        # Цвет сразу умножен на прозрачность (формат Premultiplied) — так Qt рисует
+        # картинку без пересчёта при каждом движении мыши.
         alpha = np.clip(side / 2 - (np.arange(count) + 0.5) / 4 + 0.5, 0, 1)
-        v = (rgb * 255 + 0.5).astype(np.uint32)
+        v = (np.clip(rgb, 0, 1) * alpha[:, None] * 255 + 0.5).astype(np.uint32)
         a = (alpha * 255 + 0.5).astype(np.uint32)
         table = (a << 24) | (v[:, 0] << 16) | (v[:, 1] << 8) | v[:, 2]
-        argb = table[index].astype(np.uint32)      # каждому пикселю — цвет по его расстоянию
-        return QImage(argb.tobytes(), side, side, 4 * side, QImage.Format.Format_ARGB32).copy()
+        argb = table[index]                        # каждому пикселю — цвет по его расстоянию
+        return QImage(argb.tobytes(), side, side, 4 * side,
+                      QImage.Format.Format_ARGB32_Premultiplied).copy()
+
+    def decorate(self, image, size):
+        """Оправа окуляра прямо на картинке: ободок и деления через 5°, длинные — через 30°.
+        Рисуется один раз вместе с картинкой, а не при каждом движении мыши."""
+        p = QPainter(image)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        c, R = QPointF(size / 2, size / 2), size / 2 - 0.6
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.setPen(QPen(QColor(255, 255, 255, 50), 1.2))
+        p.drawEllipse(c, R, R)
+        for k in range(72):
+            angle = math.radians(5 * k)
+            long = k % 6 == 0
+            p.setPen(QPen(QColor(255, 255, 255, 80 if long else 35), 1))
+            inner = R - (8 if long else 4)
+            p.drawLine(QPointF(c.x() + inner * math.cos(angle), c.y() + inner * math.sin(angle)),
+                       QPointF(c.x() + R * math.cos(angle), c.y() + R * math.sin(angle)))
+        p.end()
 
     def paintEvent(self, event):
         p = QPainter(self)
@@ -460,26 +496,15 @@ class RingView(QtWidgets.QWidget):
         if self.image is None:
             self.image = self.make_image(int(size * ratio))
             self.image.setDevicePixelRatio(ratio)
+            self.decorate(self.image, size)
         p.drawImage(QPointF(left, top), self.image)
         c, R = QPointF(left + size / 2, top + size / 2), size / 2
-        half = self.data[2]
-
-        # оправа окуляра: тонкий ободок и деления через 5°, длинные — через 30°
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QPen(QColor(255, 255, 255, 50), 1.2))
-        p.drawEllipse(c, R, R)
-        for k in range(72):
-            angle = math.radians(5 * k)
-            long = k % 6 == 0
-            p.setPen(QPen(QColor(255, 255, 255, 80 if long else 35), 1))
-            inner = R - (8 if long else 4)
-            p.drawLine(QPointF(c.x() + inner * math.cos(angle), c.y() + inner * math.sin(angle)),
-                       QPointF(c.x() + R * math.cos(angle), c.y() + R * math.sin(angle)))
+        half = self.data[1]
 
         dark = QColor(0, 0, 0, 170)
         p.setFont(pixel_font(self, 12))
         # подпись и масштабная линейка «круглой» длины
-        pill(p, 4, 4, self.data[3], dark, "#DDE5EE")
+        pill(p, 4, 4, self.data[2], dark, "#DDE5EE")
         half_mm = half * 1e3
         bar = ticks(0, 2 * half_mm, 4)[1]
         bar_px = bar / (2 * half_mm) * size
@@ -495,12 +520,12 @@ class RingView(QtWidgets.QWidget):
             pen.setStyle(Qt.PenStyle.DashLine)
             p.setPen(pen)
             p.drawEllipse(c, rp, rp)
-            r, layers = self.data[0], self.data[1]
-            lam, d, n, f = self.data[4]
-            bright = sum(float(np.interp(self.hover, r, T)) for T, _ in layers) / len(layers)
+            lam = self.data[0][0][0]
+            d, n, f = self.data[3]
             text = (f"r = {num(self.hover * 1e3)} мм · m = {num(order_at(self.hover, lam, d, n, f), 7)}"
-                    f" · I = {num(bright, 3)}")
-            pill(p, 4, p.fontMetrics().height() + 14, text, dark, "#5BE0CD")
+                    f" · I = {num(float(self.brightness(self.hover)), 3)}")
+            p.setFont(pixel_font(self, 12 if self.width() > 380 else 11))
+            pill(p, 4, p.fontMetrics().height() + 16, text, dark, "#5BE0CD")
 
     def mouseMoveEvent(self, event):
         if self.data is None:
@@ -508,7 +533,7 @@ class RingView(QtWidgets.QWidget):
         size, left, top = self.place()
         pos = event_pos(event)
         dist = math.hypot(pos.x() - left - size / 2, pos.y() - top - size / 2)
-        self.hover = dist / (size / 2) * self.data[2] if dist <= size / 2 else None
+        self.hover = dist / (size / 2) * self.data[1] if dist <= size / 2 else None
         self.hovered.emit(None if self.hover is None else self.hover * 1e3)
         self.update()
 

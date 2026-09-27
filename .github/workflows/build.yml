@@ -85,21 +85,33 @@ jobs:
           } else {
             Write-Warning "UCRT не найдена — на Windows 7 понадобится обновление KB2999226"
           }
-          pyinstaller --noconfirm --onefile --windowed --name FabryPerot `
-            --icon assets/icon.ico --version-file packaging/windows/version.txt `
-            --exclude-module tkinter --exclude-module PyQt6 @extra run.py
-      - name: Selftest .exe
+          $common = @('--noconfirm', '--windowed', '--name', 'FabryPerot',
+                      '--icon', 'assets/icon.ico', '--version-file', 'packaging/windows/version.txt',
+                      '--exclude-module', 'tkinter', '--exclude-module', 'PyQt6') + $extra
+          # 1) один файл .exe — удобно раздавать
+          pyinstaller @common --onefile run.py
+          # 2) папка (portable .zip) — запускается мгновенно: не распаковывается при каждом
+          #    запуске, что заметно на старых компьютерах с жёстким диском
+          pyinstaller @common --distpath dist-portable --workpath build-portable run.py
+      - name: Selftest
         shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
         run: |
-          $p = Start-Process dist\FabryPerot.exe -ArgumentList '--selftest' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { throw "selftest failed: $($p.ExitCode)" }
+          foreach ($exe in 'dist\FabryPerot.exe', 'dist-portable\FabryPerot\FabryPerot.exe') {
+            $p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "selftest failed for ${exe}: $($p.ExitCode)" }
+          }
           Rename-Item dist\FabryPerot.exe FabryPerot-Windows-7-11.exe
+          Compress-Archive -Path dist-portable\FabryPerot -DestinationPath FabryPerot-Windows-7-11-portable.zip
       - uses: actions/upload-artifact@v4
         with:
           name: FabryPerot-Windows-7-11
           path: dist/FabryPerot-Windows-7-11.exe
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FabryPerot-Windows-7-11-portable
+          path: FabryPerot-Windows-7-11-portable.zip
 
   # macOS — приложение .app в образе .dmg.
   # Отдельно для Apple Silicon (M1–M4) и для Intel.
