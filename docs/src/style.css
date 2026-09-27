@@ -1,0 +1,86 @@
+/* Оформление методичек в духе методических указаний МГТУ им. Н. Э. Баумана */
+@page { size: A4; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  font-family: 'Liberation Serif', 'Times New Roman', serif;
+  font-size: 12pt; line-height: 1.38; color: #111; margin: 0;
+  hyphens: auto; -webkit-hyphens: auto;
+}
+p { margin: 0 0 0.35em; text-align: justify; text-indent: 1.25cm; }
+p.noindent, li p, td p { text-indent: 0; }
+math { font-family: 'Latin Modern Math', 'STIX Math', serif; font-size: 1.04em; }
+h1, h2, h3 { font-weight: bold; break-after: avoid; page-break-after: avoid; }
+h1 { font-size: 13pt; text-align: center; text-transform: uppercase; margin: 1.3em 0 0.7em; letter-spacing: 0.02em; }
+h2 { font-size: 12pt; margin: 1.1em 0 0.45em; }
+h3 { font-size: 12pt; font-style: italic; font-weight: bold; margin: 0.9em 0 0.35em; }
+h1.newpage, .newpage { break-before: page; }
+ul, ol { margin: 0.2em 0 0.5em 0; padding-left: 1.6cm; }
+li { margin: 0.12em 0; text-align: justify; }
+b.term, .term { font-weight: bold; }
+em.imp { font-style: normal; font-weight: bold; }
+.small { font-size: 10.5pt; }
+
+/* титульный лист */
+.title { height: 245mm; display: flex; flex-direction: column; align-items: center; text-align: center;
+  break-after: page; }
+.title .org { font-size: 13pt; margin-top: 6mm; line-height: 1.4; }
+.title .author { margin-top: 30mm; font-size: 12pt; }
+.title .name { margin-top: 18mm; font-size: 17pt; font-weight: bold; text-transform: uppercase; line-height: 1.35; }
+.title .kind { margin-top: 8mm; font-size: 12.5pt; }
+.title .picture { margin-top: 14mm; }
+.title .year { margin-top: auto; font-size: 12pt; }
+.annotation { margin-top: 10mm; font-size: 11pt; text-align: justify; }
+.annotation p { text-indent: 1.25cm; }
+
+/* формулы */
+.equation { display: flex; align-items: center; justify-content: center; position: relative;
+  margin: 0.45em 0 0.55em; break-inside: avoid; }
+.equation math { display: block; }
+.equation .eqn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+
+/* рисунки */
+figure { margin: 0.7em 0 0.9em; text-align: center; break-inside: avoid; }
+figure img { max-width: 100%; }
+figure figcaption { font-size: 11pt; margin-top: 0.3em; text-align: center; }
+figure figcaption b { font-weight: bold; }
+.svgfig svg { max-width: 100%; height: auto; }
+figure.half img { width: 48%; margin: 0 0.8%; }
+figure.third img { width: 31%; margin: 0 0.6%; }
+
+/* таблицы */
+table { border-collapse: collapse; margin: 0.4em auto 0.9em; font-size: 11pt; break-inside: avoid; }
+caption { caption-side: top; text-align: right; font-style: italic; font-size: 11pt; padding-bottom: 2px; }
+caption b { display: block; text-align: center; font-style: normal; font-weight: bold; }
+th, td { border: 1px solid #333; padding: 3px 7px; vertical-align: middle; text-align: center; }
+th { font-weight: bold; background: #f1f3f5; }
+td.l, th.l { text-align: left; }
+table.blank td { height: 1.35em; }
+table.wide { width: 100%; }
+
+/* код */
+figure.code { text-align: left; margin: 0.6em 0 0.9em; break-inside: auto; }
+figure.code figcaption { text-align: left; font-family: 'Liberation Sans', sans-serif; font-size: 8.5pt;
+  color: #4d5a66; margin: 0 0 2px; }
+figure.code pre { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace; font-size: 8.1pt;
+  line-height: 1.32; background: #f6f8fa; border-left: 3px solid #0f8f7e; padding: 6px 9px; margin: 0;
+  white-space: pre-wrap; word-break: break-word; }
+code, .mono { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace; font-size: 0.86em;
+  background: #f1f3f5; padding: 0 3px; border-radius: 2px; }
+
+/* врезки */
+.note { border: 1px solid #b8c2cb; background: #f7f9fa; padding: 6px 10px; margin: 0.6em 0 0.8em;
+  break-inside: avoid; font-size: 11pt; }
+.note p { text-indent: 0; }
+.warn { border: 1.5px solid #333; padding: 6px 10px; margin: 0.6em 0; font-weight: bold; break-inside: avoid; }
+.say { border-left: 3px solid #d9660b; background: #fdf5ee; padding: 5px 10px; margin: 0.5em 0 0.8em;
+  font-size: 11pt; break-inside: avoid; }
+.say p { text-indent: 0; }
+.say::before { content: "Как сказать на защите"; display: block; font-weight: bold; font-family: 'Liberation Sans', sans-serif;
+  font-size: 9pt; color: #b35207; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+.task { font-weight: bold; margin-top: 0.8em; }
+ol.questions li { margin: 0.25em 0; }
+ol.refs li { text-align: left; }
+.toc p { text-indent: 0; margin: 0.15em 0; display: flex; }
+.toc p span.dots { flex: 1; border-bottom: 1px dotted #555; margin: 0 4px 5px; }
+.qa dt { font-weight: bold; margin-top: 0.5em; }
+.qa dd { margin: 0.15em 0 0.3em 0.8cm; text-align: justify; }

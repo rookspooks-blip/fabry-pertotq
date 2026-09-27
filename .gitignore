@@ -9,3 +9,4 @@ dist/
 *.dmg
 *.tar.gz
 .DS_Store
+docs/build/
