@@ -1,0 +1,1983 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Полный разбор программы</title>
+<style>
+pre.ex { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace; font-size: 8.4pt; line-height: 1.32;
+  background: #f6f8fa; border-left: 3px solid #7a838c; padding: 6px 9px; margin: 0.5em 0 0.8em;
+  white-space: pre-wrap; word-break: break-word; break-inside: avoid; }
+.plain { border-left: 3px solid #0f8f7e; background: #eef7f5; padding: 5px 10px; margin: 0.5em 0 0.8em;
+  font-size: 11pt; break-inside: avoid; }
+.plain p { text-indent: 0; }
+.plain::before { content: "Простыми словами"; display: block; font-weight: bold; font-family: 'Liberation Sans', sans-serif;
+  font-size: 9pt; color: #0b6b5c; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+.trap { border-left: 3px solid #b3261e; background: #fcf0ef; padding: 5px 10px; margin: 0.5em 0 0.8em;
+  font-size: 11pt; break-inside: avoid; }
+.trap p { text-indent: 0; }
+.trap::before { content: "Ловушка"; display: block; font-weight: bold; font-family: 'Liberation Sans', sans-serif;
+  font-size: 9pt; color: #9a1f18; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 2px; }
+h1.part { font-size: 15pt; margin-top: 0; }
+.partsub { text-align: center; font-style: italic; margin: -0.4em 0 1em; }
+table.g td { text-align: left; vertical-align: top; font-size: 10.5pt; }
+table.g th { text-align: left; font-size: 10.5pt; }
+dl.gloss dt { font-weight: bold; margin-top: 0.35em; }
+dl.gloss dd { margin: 0.05em 0 0.2em 0.8cm; text-align: justify; }
+</style></head>
+<body>
+
+<div class="title">
+  <div class="org">Московский государственный технический университет<br>им. Н. Э. Баумана</div>
+  <div class="author">Проект СЭЛФ</div>
+  <div class="name">Модель интерферометра<br>Фабри — Перо<br><span style="font-size:14pt">Полный разбор программы</span></div>
+  <div class="kind">Всё, что используется в программе, кроме основ Python: физика, математика, numpy, Qt,
+  рисование, анимация, статистика, тесты, сборка программ, GitHub и документы</div>
+  <div class="annotation">
+    <p>Пособие написано для того, кто знает основы Python: переменные, числа и строки, списки и словари,
+    <span class="mono">if</span>, <span class="mono">for</span>, <span class="mono">while</span>, функции через
+    <span class="mono">def</span>. Всё остальное объясняется с нуля: каждая библиотека, каждый приём, каждая формула и
+    каждая строчка файлов сборки. Части можно читать по отдельности. Внутри каждой части сначала идёт идея
+    простыми словами, потом подробности, потом настоящий код программы с разбором.</p>
+    <p>Фрагменты в рамке с зелёной полосой взяты прямо из файлов программы и всегда совпадают с ними. Фрагменты с серой
+    полосой — учебные примеры.</p>
+  </div>
+  <div class="year">Москва, 2026</div>
+</div>
+
+<h1>Содержание</h1>
+<div class="toc">
+<p><b>Часть 0.</b>&nbsp;Карта программы: из чего она состоит и как её запускать</p>
+<p><b>Часть 1.</b>&nbsp;Python сверх основ: модули, классы, функции, строки, файлы</p>
+<p><b>Часть 2.</b>&nbsp;numpy: массивы и вычисления без циклов</p>
+<p><b>Часть 3.</b>&nbsp;Физика: от волны до колец, спектра и разрешения</p>
+<p><b>Часть 4.</b>&nbsp;Вычислительная математика программы: как она сама меряет графики</p>
+<p><b>Часть 5.</b>&nbsp;Погрешности, метод наименьших квадратов и режим лабораторной работы</p>
+<p><b>Часть 6.</b>&nbsp;Qt: окно, виджеты, сигналы, события, таймеры, настройки</p>
+<p><b>Часть 7.</b>&nbsp;Визуал: цвета, темы, стили, рисование графиков и колец</p>
+<p><b>Часть 8.</b>&nbsp;Анимация, путь данных и скорость</p>
+<p><b>Часть 9.</b>&nbsp;Сохранение: PNG, CSV, буфер обмена, настройки, журнал</p>
+<p><b>Часть 10.</b>&nbsp;Автоматические проверки (тесты)</p>
+<p><b>Часть 11.</b>&nbsp;Упаковка: как из кода получаются программы для Windows, macOS и Linux</p>
+<p><b>Часть 12.</b>&nbsp;git и GitHub Actions: хранение кода и автоматическая сборка</p>
+<p><b>Часть 13.</b>&nbsp;Как сделаны методички</p>
+<p><b>Часть 14.</b>&nbsp;Если что-то не работает</p>
+<p><b>Часть 15.</b>&nbsp;Словарь терминов</p>
+</div>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 0. Карта программы</h1>
+
+<h2>0.1. Что делает программа одной фразой</h2>
+<p>Программа берёт параметры интерферометра (длину волны λ, зазор d, отражение зеркал R и другие), считает по
+формулам физики, сколько света проходит через прибор, и рисует три картинки: график пропускания T(λ), картину
+колец и разрез колец по радиусу. Потом она сама «меряет» получившиеся картинки, как это сделал бы человек с
+линейкой, и сравнивает результат с формулами. В режиме лабораторной работы часть параметров скрыта, и
+студент находит их сам по своим измерениям.</p>
+
+<h2>0.2. Файлы проекта</h2>
+<table class="g wide">
+<tr><th>Файл или папка</th><th>Что внутри</th><th>Нужен ли Qt</th></tr>
+<tr><td class="mono">run.py</td><td>Запуск программы. Этот же файл берёт сборщик PyInstaller</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/__init__.py</td><td>Делает папку пакетом Python; хранит номер версии и название</td><td>нет</td></tr>
+<tr><td class="mono">fabry_perot/__main__.py</td><td>Позволяет запустить командой <span class="mono">python -m fabry_perot</span></td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/physics.py</td><td>Все формулы физики и измерения по графикам</td><td>нет, только numpy</td></tr>
+<tr><td class="mono">fabry_perot/lab.py</td><td>Варианты лабораторной, метод наименьших квадратов, серии измерений</td><td>нет</td></tr>
+<tr><td class="mono">fabry_perot/fmt.py</td><td>Запись чисел по-русски, деления на осях</td><td>нет</td></tr>
+<tr><td class="mono">fabry_perot/qt.py</td><td>Подключение PyQt6 или PyQt5, мелкие различия между ними</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/theme.py</td><td>Цвета тёмной и светлой темы, таблица стилей, цвет света, значок</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/widgets.py</td><td>Свои элементы окна: график, картина колец, переключатель, карточки</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/params.py</td><td>Список параметров, готовые примеры, строка «ползунок + поле»</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/journal.py</td><td>Журнал измерений справа</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/window.py</td><td>Главное окно: собирает всё вместе, плавные переходы, сохранение</td><td>да</td></tr>
+<tr><td class="mono">fabry_perot/app.py</td><td>Создание приложения Qt и функция <span class="mono">main()</span></td><td>да</td></tr>
+<tr><td class="mono">tests/</td><td>Автоматические проверки (часть 10)</td><td>частично</td></tr>
+<tr><td class="mono">requirements*.txt</td><td>Какие библиотеки и каких версий ставить (часть 11.8)</td><td>—</td></tr>
+<tr><td class="mono">.github/workflows/build.yml</td><td>Инструкция для GitHub: как проверить и собрать программы (часть 12)</td><td>—</td></tr>
+<tr><td class="mono">packaging/</td><td>Файлы для сборки: сведения о версии для Windows, ярлык и установщик для Linux</td><td>—</td></tr>
+<tr><td class="mono">assets/</td><td>Значок программы в трёх форматах: PNG, ICO (Windows), ICNS (macOS)</td><td>—</td></tr>
+<tr><td class="mono">tools/</td><td>Вспомогательные программы: рисование значка, сборка методичек</td><td>—</td></tr>
+<tr><td class="mono">docs/</td><td>Методички в PDF и их исходники</td><td>—</td></tr>
+</table>
+
+<p>Кто кого использует, показано на схеме. Стрелка «A → B» значит «A импортирует B». Самые нижние модули ничего
+не знают об окне: <span class="mono">physics.py</span> можно взять и использовать в другой программе или в тестах.</p>
+<fig name="modules"/>
+
+<h2>0.3. Как запустить из исходников</h2>
+<pre class="ex">pip install -r requirements.txt     # один раз: ставит numpy и PyQt6
+python run.py                       # запуск
+python -m fabry_perot               # то же самое, другим способом
+python -m pytest tests              # запуск проверок (нужен pip install pytest)</pre>
+<p><span class="mono">pip</span> — программа, которая скачивает библиотеки Python из интернета (с сайта PyPI) и ставит их.
+Ключ <span class="mono">-r файл</span> значит «поставь всё, что перечислено в этом файле».</p>
+
+<h2>0.4. Что происходит при запуске, по шагам</h2>
+<ol>
+<li>Python выполняет <span class="mono">run.py</span>. Там одна строчка: импортировать функцию <span class="mono">main</span>
+из <span class="mono">fabry_perot/app.py</span> и вызвать её.</li>
+<li>При импорте <span class="mono">app.py</span> по цепочке загружаются все модули: <span class="mono">qt.py</span> выбирает
+PyQt6 или PyQt5, <span class="mono">theme.py</span> создаёт объект темы и так далее.</li>
+<li><span class="mono">main()</span> создаёт приложение Qt (<span class="mono">create_app</span>), затем главное окно
+<span class="mono">MainWindow()</span>. Конструктор окна строит все кнопки и графики и вызывает
+<span class="mono">restore()</span>: тот достаёт параметры прошлого запуска и делает первый расчёт
+<span class="mono">recalc()</span>.</li>
+<li><span class="mono">window.show()</span> показывает окно, <span class="mono">app.exec()</span> запускает «цикл событий»:
+программа ждёт действий пользователя и реагирует на них (часть 6.2). Пока окно открыто, выполнение «висит»
+внутри <span class="mono">app.exec()</span>.</li>
+<li>Когда окно закрывают, вызывается <span class="mono">closeEvent</span>: он сохраняет параметры, после чего
+<span class="mono">app.exec()</span> возвращает код завершения, и <span class="mono">sys.exit</span> заканчивает программу.</li>
+</ol>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 1. Python сверх основ</h1>
+<p class="partsub">Всё, что в программе встречается помимо переменных, циклов, условий и простых функций</p>
+
+<h2>1.1. Модули и пакеты</h2>
+<p><b>Модуль</b> — это любой файл <span class="mono">.py</span>. <b>Пакет</b> — папка с модулями, в которой лежит файл
+<span class="mono">__init__.py</span> (он может быть и пустым). Наша папка <span class="mono">fabry_perot</span> — пакет.</p>
+<p>Команда <span class="mono">import</span> выполняет файл модуля один раз (при первом импорте) и даёт доступ к тому, что в нём
+определено. Второй импорт того же модуля ничего не выполняет заново — Python помнит уже загруженные модули в словаре
+<span class="mono">sys.modules</span>. Поэтому объект <span class="mono">THEME</span> в <span class="mono">theme.py</span> существует
+в одном экземпляре, сколько бы модулей его ни импортировало.</p>
+<pre class="ex">import math                          # весь модуль; обращение: math.sqrt(2)
+import numpy as np                   # весь модуль под коротким именем: np.sqrt(2)
+from math import sqrt                # одно имя из модуля: sqrt(2)
+from .qt import Qt, QtWidgets        # точка = «из этого же пакета» (относительный импорт)
+from . import APP_TITLE              # имя из __init__.py этого пакета
+from fabry_perot.app import main     # абсолютный импорт: пакет.модуль</pre>
+<p><b>Относительный импорт</b> (с точкой) работает только внутри пакета. Внутри <span class="mono">fabry_perot/</span> все модули
+импортируют друг друга с точкой: так пакет можно переименовать или переложить, и ничего не сломается. А
+<span class="mono">run.py</span> лежит снаружи пакета, поэтому пишет полное имя <span class="mono">fabry_perot.app</span>.</p>
+
+<h3><span class="mono">if __name__ == "__main__"</span></h3>
+<p>У каждого модуля есть переменная <span class="mono">__name__</span>. Если файл запустили напрямую
+(<span class="mono">python run.py</span>), она равна строке <span class="mono">"__main__"</span>; если его импортировали — имени
+модуля. Условие в конце <span class="mono">run.py</span> значит «запускай окно, только если меня запустили, а не импортировали».</p>
+
+<h3><span class="mono">__main__.py</span> и <span class="mono">python -m</span></h3>
+<p>Команда <span class="mono">python -m fabry_perot</span> говорит: «найди пакет <span class="mono">fabry_perot</span> и выполни его
+файл <span class="mono">__main__.py</span>». Ключ <span class="mono">-m</span> (module) удобен тем, что пакет находится по обычным
+правилам импорта, и относительные импорты внутри него работают.</p>
+
+<h3>Строка документации</h3>
+<p>Строка в тройных кавычках в самом начале модуля, функции или класса — <b>docstring</b>. Python сохраняет её
+(её показывает <span class="mono">help(функция)</span>), на работу программы она не влияет. В программе у каждой функции
+есть такая строка: что делает функция и почему именно так.</p>
+
+<h2>1.2. Классы и объекты</h2>
+<div class="plain"><p>Класс — это чертёж. Объект — изделие по чертежу. У изделия есть свои данные (атрибуты) и то, что оно
+умеет делать (методы). Например, чертёж «строка параметра» <span class="mono">ParamRow</span> один, а изделий по нему девять:
+для λ, d, Δd, R, A, n, f, экрана и δλ. У каждого свой ползунок и своё поле.</p></div>
+<pre class="ex">class Counter:
+    step = 1                          # атрибут класса: общий для всех объектов
+
+    def __init__(self, start):        # конструктор: вызывается при создании объекта
+        self.value = start            # атрибут объекта: у каждого свой
+
+    def tick(self):                   # метод
+        self.value += self.step
+
+c = Counter(10)                       # создание: Python вызывает __init__(c, 10)
+c.tick()                              # то же, что Counter.tick(c)
+print(c.value)                        # 11</pre>
+<ul>
+<li><b><span class="mono">self</span></b> — сам объект. Python подставляет его первым аргументом автоматически: вызов
+<span class="mono">c.tick()</span> превращается в <span class="mono">Counter.tick(c)</span>. Через <span class="mono">self.имя</span>
+объект хранит свои данные между вызовами методов.</li>
+<li><b><span class="mono">__init__</span></b> — метод, который Python вызывает сам при создании объекта. Здесь задаются начальные
+значения атрибутов. Конструктор <span class="mono">MainWindow.__init__</span> занимает 60 строк: он строит всё окно.</li>
+<li><b>Атрибут класса</b> записан прямо в теле класса, без <span class="mono">self</span>. Пример:
+<span class="mono">ParamRow.STEPS = 1000</span> — у всех ползунков по 1000 положений. У <span class="mono">StepSpin</span> атрибут
+класса <span class="mono">stepping = False</span> служит значением по умолчанию; когда метод пишет
+<span class="mono">self.stepping = True</span>, у объекта появляется свой атрибут, который «заслоняет» общий.</li>
+</ul>
+
+<h3>Наследование</h3>
+<p>Запись <span class="mono">class Plot(QtWidgets.QWidget):</span> значит: «Plot — это QWidget (элемент окна Qt), плюс мои
+дополнения». Plot получает все методы QWidget (показаться, изменить размер, перерисоваться…) и добавляет свои. Если
+в Plot написать метод с тем же именем, что у QWidget, он <b>переопределяет</b> (заменяет) родительский. Именно так
+программа рисует свои графики: Qt, когда нужно нарисовать виджет, вызывает его метод
+<span class="mono">paintEvent</span>; у QWidget он ничего не рисует, а у Plot — рисует график.</p>
+<code ref="params.StepSpin"/>
+<p><span class="mono">super()</span> — «родительский класс». <span class="mono">super().stepBy(steps)</span> вызывает настоящий метод
+<span class="mono">QDoubleSpinBox.stepBy</span>, который и меняет число. Наш метод только оборачивает его: ставит флажок
+до и снимает после. Пока флажок стоит, поле шлёт сигнал «значение изменилось», и строка параметра видит, что
+это был шаг стрелкой (часть 8.3). В каждом конструкторе наследника первой строкой стоит
+<span class="mono">super().__init__()</span>: сначала должна отработать «родительская» подготовка объекта (у виджета Qt
+это создание настоящего окна-элемента внутри библиотеки), а потом уже наша.</p>
+
+<h3>Особые методы и <span class="mono">@property</span></h3>
+<code ref="theme.Theme"/>
+<ul>
+<li><b><span class="mono">__getitem__</span></b> — метод, который Python вызывает для записи с квадратными скобками. Благодаря ему
+пишется <span class="mono">THEME["bg"]</span>, как у словаря, хотя <span class="mono">THEME</span> — объект. Внутри он просто
+берёт значение из текущей палитры <span class="mono">self.p</span>.</li>
+<li><b><span class="mono">@property</span></b> — <b>декоратор</b> (строка с <span class="mono">@</span> перед функцией, которая
+«оборачивает» функцию). Он превращает метод в атрибут «только для чтения»: пишется <span class="mono">THEME.dark</span>
+без скобок, а на самом деле каждый раз выполняется функция и проверяет имя палитры.</li>
+<li>Объект <span class="mono">THEME = Theme()</span> создаётся один раз при загрузке модуля. Все виджеты берут цвета из него
+в момент рисования. Сменить тему — значит сменить <span class="mono">THEME.p</span> и попросить окно перерисоваться.</li>
+</ul>
+<p>Ещё особые методы, встречающиеся в программе, — это методы Qt с окончанием <span class="mono">Event</span>
+(<span class="mono">paintEvent</span>, <span class="mono">mousePressEvent</span>…). Они не особые для Python, но особые для Qt:
+Qt сам вызывает их, когда происходит событие (часть 6.6).</p>
+
+<h3>Простые классы-«записи»</h3>
+<p>Некоторые классы нужны только чтобы держать вместе несколько значений: <span class="mono">Curve</span> (формула кривой,
+цвет, имя, шум), <span class="mono">Series</span> (название задания, подписи осей, подсказка…),
+<span class="mono">Variant</span> (скрытые величины варианта). Можно было бы хранить это в словарях, но с классом
+обращение короче (<span class="mono">s.title</span> вместо <span class="mono">s["title"]</span>) и можно добавить методы
+(<span class="mono">Curve.reading</span>, <span class="mono">Variant.realism</span>).</p>
+
+<h2>1.3. Функции как значения</h2>
+<div class="plain"><p>В Python функция — такой же объект, как число или список. Её можно положить в переменную, передать
+в другую функцию, вернуть из функции. Главное отличие: <span class="mono">f</span> — это сама функция, а
+<span class="mono">f()</span> — результат её вызова.</p></div>
+<p>В программе это используется постоянно:</p>
+<ul>
+<li><span class="mono">ParamRow(grid, row, spec, self.param_changed)</span> — строке параметра передаётся метод окна. Строка
+запоминает его в <span class="mono">self.on_change</span> и вызывает <span class="mono">self.on_change(self.key, smooth)</span>, когда
+значение изменилось. Строка ничего не знает об окне, она знает только «кого позвать».</li>
+<li><span class="mono">Journal(self.context, …)</span> — журнал получает функцию, которая возвращает текущие параметры окна.</li>
+<li><span class="mono">button.clicked.connect(self.save_png)</span> — кнопке передаётся метод, который надо вызвать по щелчку
+(часть 6.5).</li>
+<li><span class="mono">Curve(value, span, …)</span> — кривая на графике хранит не точки, а <b>две функции</b>: как посчитать
+значение в любой точке и как найти минимум и максимум на отрезке.</li>
+</ul>
+<p><b>Связанный метод.</b> <span class="mono">self.param_changed</span> (без скобок) — это метод, уже «привязанный» к конкретному
+окну. Когда его позже вызовут как <span class="mono">on_change("d", True)</span>, Python сам подставит нужный
+<span class="mono">self</span>.</p>
+
+<h3><span class="mono">lambda</span></h3>
+<p><span class="mono">lambda аргументы: выражение</span> — короткая безымянная функция в одну строку. Запись
+<span class="mono">lambda x: x * 2</span> означает то же, что</p>
+<pre class="ex">def без_имени(x):
+    return x * 2</pre>
+<p>Пример из программы: <span class="mono">key=lambda s: abs(math.log(s / raw))</span> в <span class="mono">fmt.ticks</span> —
+функция, по которой <span class="mono">min</span> выбирает «самый близкий» шаг делений.</p>
+
+<h3>Замыкания</h3>
+<p>Функция, определённая внутри другой функции, видит переменные внешней — даже после того, как внешняя закончилась.
+Это называется <b>замыкание</b>.</p>
+<code ref="window.MainWindow.recalc" lines="50-68" caption="fabry_perot/window.py — recalc (фрагмент): кривые разреза колец"/>
+<p>Здесь <span class="mono">value</span> и <span class="mono">span</span> пользуются переменными <span class="mono">d, n, F, tmax, blur,
+share, wl</span> из <span class="mono">recalc</span>. Функции «уносят» эти значения с собой в объект
+<span class="mono">Curve</span>, и график потом вызывает их, когда нужно нарисовать кривую при любом масштабе.</p>
+
+<div class="trap"><p><b>lambda в цикле.</b> Замыкание запоминает не значение, а саму переменную. Если в цикле написать
+<span class="mono">button.clicked.connect(lambda: self.apply_preset(values))</span>, то все кнопки после цикла будут видеть
+<b>последнее</b> значение <span class="mono">values</span>. Поэтому в программе написано
+<span class="mono">lambda _, v=values, s=dlam: self.apply_preset(v, s)</span>: значения по умолчанию аргументов вычисляются
+в момент создания функции, так что у каждой кнопки свои <span class="mono">v</span> и <span class="mono">s</span>. Первый
+аргумент <span class="mono">_</span> — это <span class="mono">checked</span>, который шлёт сигнал <span class="mono">clicked</span>; он не
+нужен, а подчёркивание по договорённости означает «не используется». Тот же приём в журнале:
+<span class="mono">def value(x, a=a, b=b)</span>.</p></div>
+
+<h3>Ещё одна ловушка: список, содержащий сам себя</h3>
+<p>В <span class="mono">recalc</span> написано <span class="mono">curves.append(self.sum_curve(list(curves), sigma))</span>. Функция
+суммы складывает все кривые списка. Если передать сам список <span class="mono">curves</span>, то после
+<span class="mono">append</span> в нём окажется и кривая суммы, и она попробует сложить сама себя — бесконечно
+(ошибка <span class="mono">RecursionError</span>). <span class="mono">list(curves)</span> делает копию списка в момент вызова, и
+кривая суммы видит только две исходные кривые.</p>
+
+<h2>1.4. Распаковка, аргументы, словари</h2>
+<pre class="ex">key, name, unit, lo, hi, value, decimals, step, tip, log = spec   # 10 элементов кортежа → 10 переменных
+a, b = b, a                                                          # обмен значений
+module, *names = "window.MainWindow.recalc".split(".")               # module="window", names=[…, …]
+for button, values, dlam in self.preset_buttons: ...                  # распаковка прямо в цикле
+for i, (_, name) in enumerate(TILES): ...                             # вложенная распаковка</pre>
+<ul>
+<li><b>Звёздочка при распаковке</b> собирает «всё остальное» в список.</li>
+<li><b><span class="mono">*args</span></b> в определении функции собирает лишние позиционные аргументы в кортеж:
+<span class="mono">def schedule(self, *args)</span> можно вызвать с любым числом аргументов — это нужно, потому что разные
+сигналы Qt передают разное число значений, а функции они не нужны.</li>
+<li><b>Звёздочка при вызове</b> раскладывает список в отдельные аргументы: <span class="mono">LabDialog(self, *self.student)</span>
+то же, что <span class="mono">LabDialog(self, self.student[0], self.student[1])</span>.</li>
+<li><b>Две звёздочки</b> раскладывают словарь в именованные аргументы:
+<span class="mono">p.chromium.launch(**{"executable_path": exe})</span> = <span class="mono">launch(executable_path=exe)</span>.</li>
+<li><b>Именованные аргументы и значения по умолчанию</b>: <span class="mono">def num(x, digits=4)</span> можно вызвать как
+<span class="mono">num(x)</span> или <span class="mono">num(x, 3)</span>, или <span class="mono">num(x, digits=3)</span>.</li>
+<li><b>Словарь с добавками</b>: <span class="mono">dict(BASE, lam=632.8, d=5.0, R=0.9)</span> — копия словаря
+<span class="mono">BASE</span>, в которую добавлены (или заменены) ключи. Так все примеры получают общие значения
+<span class="mono">n = 1, f = 200</span> и т. д.</li>
+<li><b><span class="mono">dict.get(key, default)</span></b> — значение по ключу или default, если ключа нет (без ошибки).
+<span class="mono">dict.pop(key, None)</span> — удалить ключ, если он есть.</li>
+</ul>
+
+<h2>1.5. Короткие приёмы, которые встречаются в коде</h2>
+<table class="g wide">
+<tr><th>Запись</th><th>Что значит</th></tr>
+<tr><td class="mono">x if условие else y</td><td>условное выражение: одно из двух значений</td></tr>
+<tr><td class="mono">[f(x) for x in xs]</td><td>список из значений <span class="mono">f(x)</span> для всех x (генератор списка)</td></tr>
+<tr><td class="mono">[x for x in xs if x &gt; 0]</td><td>то же с фильтром</td></tr>
+<tr><td class="mono">{s.key: s for s in SERIES}</td><td>словарь по тому же принципу (так сделан <span class="mono">BY_KEY</span>)</td></tr>
+<tr><td class="mono">{i.row() for i in …}</td><td>множество: без повторов (номера выбранных строк журнала)</td></tr>
+<tr><td class="mono">sum(x * y for x, y in zip(xs, ys))</td><td>сумма без промежуточного списка; <span class="mono">zip</span> идёт по двум спискам сразу</td></tr>
+<tr><td class="mono">enumerate(список)</td><td>пары (номер, элемент)</td></tr>
+<tr><td class="mono">any(…)</td><td>True, если хоть один элемент истинен</td></tr>
+<tr><td class="mono">min(варианты, key=функция)</td><td>элемент, у которого функция наименьшая</td></tr>
+<tr><td class="mono">sorted(…, reverse=True)</td><td>отсортированная копия по убыванию</td></tr>
+<tr><td class="mono">a or b</td><td>a, если оно «истинно» (не 0, не пусто, не None), иначе b. <span class="mono">width or fsr</span> — ширина, а если её нет, расстояние между пиками</td></tr>
+<tr><td class="mono">(list(m[:2]) + [None, None])[:2]</td><td>ровно два элемента: первые два из m, недостающие — None</td></tr>
+<tr><td class="mono">x is None</td><td>проверка «это именно None» (а не 0 или пустая строка)</td></tr>
+<tr><td class="mono">v is values</td><td>тот же самый объект, а не просто равный (так ищется нажатая кнопка примера)</td></tr>
+<tr><td class="mono">1 &lt;&lt; 30</td><td>сдвиг битов влево: 2³⁰</td></tr>
+<tr><td class="mono">float(x).is_integer()</td><td>число целое (2.0 → True)</td></tr>
+<tr><td class="mono">1e-9, 0.05e-12</td><td>научная запись: 1·10⁻⁹, 0,05·10⁻¹²</td></tr>
+<tr><td class="mono">range(1, 31)</td><td>числа 1…30 (правая граница не входит)</td></tr>
+</table>
+
+<h2>1.6. Строки и f-строки</h2>
+<p>f-строка — строка с буквой <span class="mono">f</span> перед кавычкой, в которую в фигурных скобках вставляются значения:
+<span class="mono">f"v{__version__}"</span> → <span class="mono">v2.0.0</span>. После двоеточия внутри скобок пишется <b>формат</b>:</p>
+<table class="g wide">
+<tr><th>Формат</th><th>Пример</th><th>Результат</th></tr>
+<tr><td class="mono">:.3f</td><td class="mono">f"{3.14159:.3f}"</td><td>3.142 — ровно 3 знака после точки</td></tr>
+<tr><td class="mono">:,.2f</td><td class="mono">f"{15803.5:,.2f}"</td><td>15,803.50 — запятая разделяет тысячи</td></tr>
+<tr><td class="mono">:g</td><td class="mono">f"{0.0100:g}"</td><td>0.01 — без лишних нулей</td></tr>
+<tr><td class="mono">:.6g</td><td class="mono">f"{632.80001:.6g}"</td><td>632.8 — не больше 6 значащих цифр</td></tr>
+<tr><td class="mono">:.2f внутри</td><td class="mono">f"{t:.2f}"</td><td>используется в градиенте радуги</td></tr>
+<tr><td>вложенный формат</td><td class="mono">f"{x:.{k}f}"</td><td>число знаков берётся из переменной k</td></tr>
+</table>
+<p>Англоязычный формат пишет точку и запятую «наоборот» по сравнению с русским. Поэтому
+<span class="mono">fmt.num</span> сначала заменяет запятую-разделитель тысяч на неразрывный пробел, а потом точку на запятую:</p>
+<code ref="fmt.num"/>
+<ul>
+<li><span class="mono">math.log10(abs(x))</span> — десятичный логарифм: сколько цифр до запятой минус один.
+<span class="mono">floor</span> — округление вниз. Для 4708000 степень равна 6.</li>
+<li>Если степень от −3 до 5, число пишется обычно, а знаков после запятой ровно столько, чтобы всего было 4 значащие
+цифры: <span class="mono">digits − 1 − power</span>. Для 40,04: power = 1, знаков 4 − 1 − 1 = 2.</li>
+<li>Иначе — через степень десяти. <span class="mono">str.maketrans</span> делает таблицу замены символов, а
+<span class="mono">translate</span> применяет её: цифры степени превращаются в верхние индексы ⁰¹²…</li>
+<li>Минус <span class="mono">-</span> заменяется на настоящий типографский минус <span class="mono">−</span> (он длиннее дефиса).</li>
+<li><span class="mono">isinstance(x, (int, np.integer))</span> — проверка типа: целое число Python или целое numpy.</li>
+</ul>
+<p>Другие методы строк: <span class="mono">replace(a, b)</span> — заменить все a на b; <span class="mono">strip()</span> — убрать пробелы
+по краям; <span class="mono">lstrip("-")</span> — убрать минусы слева; <span class="mono">split(",")</span> — разрезать по запятой в
+список; <span class="mono">"   ".join(parts)</span> — склеить список, вставив между элементами разделитель;
+<span class="mono">upper()</span> — заглавными буквами; <span class="mono">endswith(".png")</span> — кончается ли строка на…</p>
+<p><b>Unicode.</b> Строки Python хранят любые символы: λ, δ, ², ₁, «», ≈, ⌀. Их можно писать прямо в коде, потому что
+файлы сохранены в кодировке UTF-8.</p>
+
+<h2>1.7. Исключения: <span class="mono">try / except</span></h2>
+<div class="plain"><p>Исключение — это «авария» в программе: деление на ноль, нет файла, не тот тип. Если его не
+поймать, программа останавливается с сообщением об ошибке. Блок <span class="mono">try … except</span> говорит: «попробуй;
+если случится вот такая авария — сделай вот это вместо остановки».</p></div>
+<table class="g wide">
+<tr><th>Где</th><th>Какое исключение</th><th>Зачем ловится</th></tr>
+<tr><td class="mono">qt.py</td><td class="mono">ImportError</td><td>PyQt6 не установлен (Windows 7) — берём PyQt5</td></tr>
+<tr><td class="mono">app.py</td><td class="mono">AttributeError</td><td>в старом Qt 5 нет функции PassThrough — просто пропускаем</td></tr>
+<tr><td class="mono">window.restore</td><td class="mono">TypeError, ValueError</td><td>в файле настроек мусор вместо числа — оставляем значение по умолчанию</td></tr>
+<tr><td class="mono">window.write_csv</td><td class="mono">OSError</td><td>файл не записался (нет прав, открыт в Excel) — показываем сообщение</td></tr>
+<tr><td class="mono">journal.load_json</td><td class="mono">TypeError, ValueError</td><td>сохранённый журнал испорчен — начинаем с пустого</td></tr>
+</table>
+<p><span class="mono">except OSError as error:</span> — поймать и положить само исключение в переменную, чтобы показать его текст.
+<span class="mono">pass</span> — пустая команда «ничего не делать». <span class="mono">raise KeyError(…)</span> — самому вызвать
+исключение (так делает сборщик методичек, если не нашёл функцию).</p>
+
+<h2>1.8. Файлы: <span class="mono">with open(…)</span></h2>
+<pre class="ex">with open(path, "w", newline="", encoding="utf-8-sig") as file:
+    ...                              # пишем в file
+# здесь файл уже закрыт, даже если внутри случилась ошибка</pre>
+<ul>
+<li><span class="mono">"w"</span> — открыть на запись (старое содержимое стирается); <span class="mono">"r"</span> — на чтение.</li>
+<li><span class="mono">encoding</span> — как символы превращаются в байты. <span class="mono">utf-8</span> — стандарт; <span class="mono">utf-8-sig</span>
+добавляет в начало файла три невидимых байта-метки (BOM). По этой метке Excel понимает, что файл в UTF-8, и
+показывает русские буквы, а не «кракозябры».</li>
+<li><span class="mono">newline=""</span> — требование модуля <span class="mono">csv</span>: он сам ставит переносы строк, а без этого на
+Windows между строками появлялись бы пустые.</li>
+<li><span class="mono">with</span> — «менеджер контекста»: гарантирует закрытие файла при выходе из блока.</li>
+</ul>
+
+<h2>1.9. Модули стандартной библиотеки</h2>
+<p>Они идут вместе с Python, ставить их не нужно.</p>
+<table class="g wide">
+<tr><th>Модуль</th><th>Что из него берётся</th><th>Где</th></tr>
+<tr><td class="mono">math</td><td><span class="mono">floor, ceil</span> (округление вниз/вверх), <span class="mono">log10, log</span>, <span class="mono">sqrt</span>,
+<span class="mono">hypot(a, b)</span> = √(a²+b²), <span class="mono">asin</span> (арксинус), <span class="mono">radians</span> (градусы → радианы),
+<span class="mono">isfinite</span> (не бесконечность и не nan), <span class="mono">pi</span></td><td>везде</td></tr>
+<tr><td class="mono">random</td><td><span class="mono">random.Random(зерно)</span> — свой генератор случайных чисел; <span class="mono">uniform(a, b)</span>, <span class="mono">choice(список)</span>, <span class="mono">shuffle(список)</span></td><td class="mono">lab.Variant</td></tr>
+<tr><td class="mono">json</td><td><span class="mono">dumps</span> (объект → текст), <span class="mono">loads</span> (текст → объект)</td><td>журнал</td></tr>
+<tr><td class="mono">csv</td><td><span class="mono">csv.writer(file, delimiter=";")</span>, <span class="mono">writerow(список)</span></td><td>сохранение таблицы</td></tr>
+<tr><td class="mono">os</td><td><span class="mono">os.environ</span> (переменные окружения), <span class="mono">os.path.join</span> (склейка пути), <span class="mono">os.makedirs</span></td><td><span class="mono">qt.py</span>, tools</td></tr>
+<tr><td class="mono">sys</td><td><span class="mono">sys.argv</span> (аргументы командной строки), <span class="mono">sys.exit(код)</span>, <span class="mono">sys.executable</span>, <span class="mono">sys.path</span></td><td><span class="mono">app.py</span>, tools</td></tr>
+<tr><td class="mono">re</td><td>регулярные выражения — поиск по шаблону в тексте</td><td>сборка методичек</td></tr>
+<tr><td class="mono">ast</td><td>разбор кода Python на части (найти функцию по имени)</td><td>сборка методичек</td></tr>
+<tr><td class="mono">glob, subprocess, html, textwrap</td><td>поиск файлов по маске, запуск другой программы, экранирование &lt; &gt;, снятие отступа</td><td>сборка методичек</td></tr>
+</table>
+<p><b>Переменная окружения</b> — именованная строка, которую операционная система передаёт каждой запущенной программе.
+Например, <span class="mono">FABRY_QT=5 python run.py</span> запустит программу с переменной <span class="mono">FABRY_QT</span>, равной
+<span class="mono">"5"</span>, и <span class="mono">qt.py</span> возьмёт PyQt5. <span class="mono">QT_QPA_PLATFORM=offscreen</span> говорит Qt рисовать
+окна в памяти, без экрана (так работают тесты на серверах).</p>
+<p><b><span class="mono">sys.argv</span></b> — список слов командной строки: для <span class="mono">FabryPerot.exe --selftest</span> это
+<span class="mono">["FabryPerot.exe", "--selftest"]</span>. <span class="mono">main()</span> проверяет, есть ли там
+<span class="mono">--selftest</span>.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 2. numpy</h1>
+<p class="partsub">Библиотека для быстрых вычислений сразу над тысячами и миллионами чисел</p>
+
+<h2>2.1. Зачем numpy</h2>
+<div class="plain"><p>Обычный цикл Python обрабатывает около 10–30 миллионов простых операций в секунду: каждая
+операция проверяет типы, создаёт объекты и т. п. numpy хранит числа сплошным блоком памяти одного типа и
+обрабатывает весь блок кодом на C за одну команду. Получается в 50–200 раз быстрее. Картинка колец 700 × 700 — это
+почти полмиллиона пикселей; обойти их циклом Python — около секунды, numpy — несколько миллисекунд.</p></div>
+<pre class="ex">import numpy as np
+x = np.linspace(0, 1, 5)       # массив [0.  , 0.25, 0.5 , 0.75, 1.  ]
+y = np.sin(x) * 2 + 1          # одна строка — вычисление для всех 5 чисел сразу
+# без numpy пришлось бы писать:
+y = [math.sin(v) * 2 + 1 for v in xs]</pre>
+<p>Такой стиль называется <b>векторизация</b>: вместо цикла «для каждого числа» пишется формула для целого массива.
+Функции <span class="mono">physics.py</span> написаны так, что работают и с одним числом, и с массивом: в
+<span class="mono">phase(lam, d, n)</span> можно передать массив длин волн и получить массив фаз.</p>
+
+<h2>2.2. Массив: форма и тип</h2>
+<ul>
+<li><b>Форма</b> (<span class="mono">shape</span>) — размеры массива. Одномерный из 5 чисел: <span class="mono">(5,)</span>.
+Картинка 400 × 300: <span class="mono">(300, 400)</span> — сначала строки (высота), потом столбцы (ширина).</li>
+<li><b>Тип</b> (<span class="mono">dtype</span>) — какие числа внутри. Все элементы одного типа:
+<ul>
+<li><span class="mono">float64</span> — обычные дробные числа (≈ 16 значащих цифр), тип по умолчанию;</li>
+<li><span class="mono">float32</span> — дробные с ≈ 7 цифрами, вдвое меньше памяти и быстрее; используется для
+растеризации графика, где точность пикселя не нужна;</li>
+<li><span class="mono">uint8</span> — целые 0…255 (один байт) — степень прозрачности пикселя;</li>
+<li><span class="mono">uint32</span> — целые 0…4 294 967 295 (четыре байта) — цвет пикселя целиком;</li>
+<li><span class="mono">intp</span> — целые для номеров элементов (индексов).</li>
+</ul></li>
+<li><span class="mono">a.astype(np.uint8)</span> — новый массив другого типа (дробная часть отбрасывается, поэтому перед
+этим прибавляют 0,5 — так получается округление).</li>
+</ul>
+
+<h2>2.3. Как создаются массивы</h2>
+<table class="g wide">
+<tr><th>Функция</th><th>Результат</th><th>Где в программе</th></tr>
+<tr><td class="mono">np.array([1, 2, 3])</td><td>массив из списка</td><td>цвет линии</td></tr>
+<tr><td class="mono">np.zeros(n), np.zeros((n, 3))</td><td>n нулей; таблица n × 3 из нулей</td><td>цвета колец</td></tr>
+<tr><td class="mono">np.arange(a, b, шаг)</td><td>a, a+шаг, … (до b, не включая)</td><td>номера колец, пикселей</td></tr>
+<tr><td class="mono">np.linspace(a, b, n)</td><td>n равноотстоящих чисел от a до b включительно</td><td>точки графика</td></tr>
+</table>
+<p>Чем отличаются <span class="mono">arange</span> и <span class="mono">linspace</span>: у первого задан шаг, у второго — число точек.
+<span class="mono">linspace(x0, x1, width + 1)</span> даёт ровно <span class="mono">width + 1</span> границ для <span class="mono">width</span> столбцов
+пикселей.</p>
+
+<h2>2.4. Поэлементные операции</h2>
+<p><span class="mono">+ − * / **</span> между массивами одной формы действуют попарно: <span class="mono">a * b</span> — массив
+произведений. Между массивом и числом — число применяется к каждому элементу. Функции numpy тоже поэлементные:</p>
+<table class="g wide">
+<tr><th>Функция</th><th>Что делает</th></tr>
+<tr><td class="mono">np.sin, np.tan, np.arctan, np.sqrt, np.exp, np.log</td><td>как в math, но для массивов</td></tr>
+<tr><td class="mono">np.floor, np.abs, np.hypot</td><td>округление вниз, модуль, √(a²+b²)</td></tr>
+<tr><td class="mono">np.minimum(a, b), np.maximum(a, b)</td><td>попарный минимум и максимум двух массивов</td></tr>
+<tr><td class="mono">np.clip(a, lo, hi)</td><td>обрезать значения: меньше lo → lo, больше hi → hi</td></tr>
+<tr><td class="mono">np.where(условие, a, b)</td><td>поэлементный if: где условие верно — из a, иначе из b</td></tr>
+<tr><td class="mono">np.divide(a, b, out=…, where=b != 0)</td><td>деление только там, где делитель не ноль; в остальных местах — значение из out</td></tr>
+</table>
+<p><span class="mono">np.where</span> — главный заменитель <span class="mono">if</span> в векторном коде. В <span class="mono">airy_range</span>:
+<span class="mono">np.where(has_peak, tmax, np.maximum(ta, tb))</span> — «если на отрезке есть пик, максимум равен Tmax, иначе —
+большему из концов», сразу для тысяч отрезков.</p>
+<p>Сравнения тоже поэлементные и дают <b>массив True/False</b> (булев массив): <span class="mono">T &lt; half</span>.
+Такие массивы объединяются знаками <span class="mono">&amp;</span> (и), <span class="mono">|</span> (или) — не словами
+<span class="mono">and</span>/<span class="mono">or</span>, которые для массивов не работают. Каждое сравнение при этом берут в скобки:
+<span class="mono">(s2 &gt; 0) &amp; (s2 &lt; 1)</span>.</p>
+
+<h2>2.5. Индексы, срезы, маски</h2>
+<pre class="ex">y = np.array([0, 3, 1, 5, 2])
+y[1:-1]            # [3, 1, 5]   — без первого и последнего («середина»)
+y[:-2]             # [0, 3, 1]   — «левые соседи» середины
+y[2:]              # [1, 5, 2]   — «правые соседи» середины
+y[1:-1] &gt; y[:-2]   # [True, False, True] — середина больше левого соседа?
+y[[3, 1]]          # [5, 3]      — выбор по списку номеров («причудливые индексы»)
+y[y &gt; 1]           # [3, 5, 2]   — выбор по маске
+np.flatnonzero(y &gt; 1)   # [1, 3, 4] — номера, где условие верно</pre>
+<p>Так <span class="mono">find_peaks</span> ищет максимумы без цикла: точка — максимум, если она больше левого соседа и не меньше
+правого. Сравнение трёх сдвинутых срезов проверяет это условие сразу для всех точек, <span class="mono">flatnonzero</span> даёт
+их номера, а <span class="mono">+ 1</span> поправляет сдвиг (срез <span class="mono">y[1:-1]</span> начинается с элемента 1).</p>
+<code ref="physics.find_peaks" nodoc/>
+<p>Выбор по массиву номеров <span class="mono">table[index]</span> работает и для двумерного <span class="mono">index</span>: результат
+имеет форму <span class="mono">index</span>, а значения берутся из <span class="mono">table</span>. Так картинка колец получает цвет каждого
+пикселя по его расстоянию до центра (часть 7.9). Запись <span class="mono">grid[np.arange(len(center)), best]</span> берёт из
+каждой строки таблицы <span class="mono">grid</span> элемент со своим номером <span class="mono">best</span>.</p>
+
+<h2>2.6. Broadcasting — «растягивание» форм</h2>
+<div class="plain"><p>Если сложить столбец из 3 чисел и строку из 4 чисел, numpy получит таблицу 3 × 4: каждый
+элемент столбца сложится с каждым элементом строки. Это и есть broadcasting. Так строятся двумерные картинки без
+двойного цикла.</p></div>
+<pre class="ex">rows = np.arange(3)[:, None]      # форма (3, 1): столбец [[0], [1], [2]]
+cols = np.arange(4)[None, :]      # форма (1, 4): строка [[0, 1, 2, 3]]
+rows * 10 + cols                  # форма (3, 4):
+# [[ 0,  1,  2,  3],
+#  [10, 11, 12, 13],
+#  [20, 21, 22, 23]]</pre>
+<p><span class="mono">[:, None]</span> добавляет ось длины 1 справа (из строки делает столбец), <span class="mono">[None, :]</span> — слева.
+Правило: оси длины 1 «растягиваются» до длины соответствующей оси другого массива.</p>
+<p>Примеры в программе:</p>
+<ul>
+<li><span class="mono">RingView.make_image</span>: <span class="mono">np.hypot(c[None, :] + cx, c[:, None] + cy)</span> — расстояние от центра колец для
+каждого пикселя квадратной картинки: <span class="mono">c[None, :]</span> — координата x столбца, <span class="mono">c[:, None]</span> —
+координата y строки.</li>
+<li><span class="mono">Plot.draw_curve</span>: <span class="mono">rows</span> — столбец номеров строк пикселей, <span class="mono">top</span> и
+<span class="mono">bottom</span> — строки «верх и низ кривой в каждом столбце»; <span class="mono">np.minimum(rows + 1, bottom + half)</span> даёт
+сразу всю картинку.</li>
+<li><span class="mono">measure_rings</span>: <span class="mono">center[:, None] + step * offsets[None, :]</span> — вокруг каждого из сотни
+найденных колец сетка из 33 точек, всего таблица 100 × 33.</li>
+</ul>
+
+<h2>2.7. Сводные функции и форма</h2>
+<ul>
+<li><span class="mono">a.max(), a.min(), a.sum()</span> — по всему массиву.</li>
+<li><span class="mono">a.max(axis=1)</span> — по каждой строке отдельно (ось 1 — вдоль строки). Результат — столбец максимумов.</li>
+<li><span class="mono">np.argmax(a, axis=1)</span> — <b>номер</b> наибольшего элемента в каждой строке.</li>
+<li><span class="mono">a.ravel()</span> — вытянуть таблицу в одну строку; <span class="mono">a.reshape(форма)</span> — обратно в таблицу.</li>
+<li><span class="mono">a.copy()</span> — копия. Срез <span class="mono">a[:10]</span> в numpy — не копия, а «окно» в тот же массив:
+изменения в нём меняют исходный массив. Поэтому в <span class="mono">measure_rings</span> написано
+<span class="mono">peaks[:refine].copy()</span>.</li>
+</ul>
+
+<h2>2.8. Прочие функции numpy из программы</h2>
+<table class="g wide">
+<tr><th>Функция</th><th>Что делает</th><th>Где</th></tr>
+<tr><td class="mono">np.searchsorted(pos, x)</td><td>в отсортированном массиве находит место, куда встал бы x</td><td>пики слева и справа от λ₁</td></tr>
+<tr><td class="mono">np.interp(x, xp, fp)</td><td>линейная интерполяция: значение между известными точками</td><td>ширина пика на половине высоты</td></tr>
+<tr><td class="mono">np.convolve(a, k, mode="valid")</td><td>свёртка: каждое значение заменяется взвешенной суммой соседей с весами k</td><td>свечение колец</td></tr>
+<tr><td class="mono">np.pad(a, k, mode="reflect")</td><td>добавить k значений с каждого края, зеркально отражая</td><td>свечение: чтобы у краёв было что сворачивать</td></tr>
+<tr><td class="mono">np.random.normal(0, σ)</td><td>случайное число по нормальному закону (шум)</td><td>показания курсора</td></tr>
+<tr><td class="mono">np.random.default_rng(seed)</td><td>генератор случайных чисел с заданным зерном</td><td>шум полоски кривой</td></tr>
+<tr><td class="mono">np.random.randint(n)</td><td>случайное целое от 0 до n−1</td><td>новое зерно при пересчёте</td></tr>
+<tr><td class="mono">a.tobytes()</td><td>все числа массива подряд как байты</td><td>передача картинки в Qt</td></tr>
+</table>
+
+<h3>Вычисления «на месте»</h3>
+<p><span class="mono">line -= x</span>, <span class="mono">clear *= 1 - fill</span>, <span class="mono">np.clip(line, 0, 1, out=line)</span> меняют
+существующий массив, не создавая нового. Для картинки в полмиллиона чисел это экономит время на выделение памяти.
+Запись <span class="mono">a = a - x</span> создала бы новый массив, а старый выбросила.</p>
+
+<h3>Битовые операции для цвета</h3>
+<p>Цвет пикселя в Qt — одно 32-битное число: 8 бит прозрачности, 8 красного, 8 зелёного, 8 синего:
+<span class="mono">0xAARRGGBB</span>. Собрать его из четырёх чисел 0…255 можно сдвигами: <span class="mono">(a &lt;&lt; 24) | (r &lt;&lt; 16) |
+(g &lt;&lt; 8) | b</span>. Сдвиг <span class="mono">&lt;&lt; 16</span> умножает на 2¹⁶ — число «переезжает» на 16 бит влево, а
+<span class="mono">|</span> (побитовое «или») складывает части, не мешая друг другу. Так сделаны
+<span class="mono">color_table</span> и таблица цветов колец.</p>
+
+<h2>2.9. Дробные числа в компьютере</h2>
+<ul>
+<li>Число <span class="mono">float64</span> хранит около 16 значащих цифр. <span class="mono">0.1 + 0.2</span> даёт
+<span class="mono">0.30000000000000004</span>: десятичные дроби не всегда записываются точно в двоичном виде. Поэтому числа
+сравнивают не на равенство, а с допуском: <span class="mono">abs(a − b) &lt; 1e-12</span>, или в тестах
+<span class="mono">pytest.approx</span>.</li>
+<li><b>Потеря точности при вычитании близких чисел.</b> Порядок интерференции в центре m₀ = 2nd/λ ≈ 15 800. Если считать
+sin²θ = n² − (mλ/2d)², вычитаются два числа около 1, отличающиеся в 5–6 знаке, и половина значащих цифр теряется.
+<span class="mono">ring_radii</span> переписывает формулу как <span class="mono">a·(m₀ − m)·(n + m·a)</span> (это разность квадратов
+x² − y² = (x − y)(x + y)): разность m₀ − m считается точно, и радиусы получаются верными до последних знаков.</li>
+<li><span class="mono">nan</span> («не число») получается, например, из 0/0 или √(−1) в numpy; <span class="mono">inf</span> — бесконечность.
+<span class="mono">math.isfinite(x)</span> проверяет, что x — обычное число.</li>
+<li>Порог <span class="mono">1e-9</span> в <span class="mono">fmt.ticks</span> (<span class="mono">math.ceil(lo / step − 1e-9)</span>) защищает от того,
+что 0,14 / 0,02 в компьютере равно 7,000000000000001, и округление вверх дало бы 8 вместо 7 — первое деление
+оси пропало бы. Небольшой запас убирает такие ошибки.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 3. Физика</h1>
+<p class="partsub">От того, что такое волна, до каждой формулы в physics.py</p>
+
+<h2>3.1. Свет — волна</h2>
+<div class="plain"><p>Свет — это колебания электрического и магнитного поля, которые бегут в пространстве со скоростью
+c ≈ 3·10⁸ м/с. Если «сфотографировать» волну, поле вдоль луча меняется как синусоида. Расстояние между соседними
+гребнями — <b>длина волны</b> λ. От длины волны зависит цвет.</p></div>
+<ul>
+<li><b>Длина волны λ</b> видимого света — от 380 нм (фиолетовый) до 780 нм (тёмно-красный). 1 нм (нанометр) = 10⁻⁹ м,
+1 пм (пикометр) = 10⁻¹² м = 0,001 нм, 1 фм (фемтометр) = 10⁻¹⁵ м. Гелий-неоновый лазер светит на 632,8 нм (красный),
+зелёная лазерная указка — на 532 нм, натриевая лампа — на двух линиях 589,0 и 589,6 нм (жёлтый).</li>
+<li><b>Частота</b> ν — сколько колебаний в секунду в данной точке: ν = c/λ. Для 632,8 нм ν ≈ 4,74·10¹⁴ Гц.</li>
+<li><b>Фаза</b> — «в какой части колебания» волна находится, в радианах. Один полный период — 2π радиан (360°). Когда
+волна проходит путь L, её фаза меняется на 2πL/λ: каждая длина волны пути — ещё один полный оборот.</li>
+<li>Глаз и приёмники чувствуют не само поле, а <b>интенсивность</b> — среднюю мощность, пропорциональную квадрату
+амплитуды поля. Колебания 10¹⁴ раз в секунду не может отследить ни один прибор.</li>
+</ul>
+
+<h2>3.2. Интерференция</h2>
+<p>Когда в одну точку приходят две волны одинаковой частоты, их поля складываются. Результат зависит от разности фаз Δφ:</p>
+<ul>
+<li>Δφ = 0, 2π, 4π… — гребень на гребень, волны усиливают друг друга (<b>максимум</b>);</li>
+<li>Δφ = π, 3π… — гребень на впадину, волны гасят друг друга (<b>минимум</b>).</li>
+</ul>
+<p>Для двух одинаковых волн интенсивность I = 2I₀(1 + cos Δφ): от 0 до 4I₀. Это и есть интерференция. Разность фаз
+обычно возникает из-за <b>разности хода</b> — одна волна прошла путь длиннее другой на Δ, тогда Δφ = 2πΔ/λ.</p>
+
+<h3>Как складывать волны: комплексные числа</h3>
+<p>Складывать синусоиды с разными фазами неудобно. Физики записывают волну как комплексное число
+$E = a\,e^{i\varphi}$ — стрелку длины a, повёрнутую на угол φ. Складывать волны — значит складывать стрелки,
+а интенсивность — квадрат длины получившейся стрелки: $I = |E|^2$. Этого достаточно, чтобы понять вывод ниже.
+Тест <span class="mono">test_airy_matches_sum_of_beams</span> прямо так и делает: складывает 800 стрелок с помощью комплексных
+чисел numpy (<span class="mono">1j</span> — мнимая единица в Python) и сравнивает с формулой.</p>
+
+<h2>3.3. Устройство интерферометра</h2>
+<p>Два плоских частично прозрачных зеркала стоят параллельно на расстоянии d. Каждое зеркало отражает долю R
+интенсивности, поглощает долю A и пропускает долю 1 − R − A. Свет входит через первое зеркало и много раз ходит между
+зеркалами. На каждом отражении от второго зеркала часть света выходит наружу. Выходящие лучи параллельны, линза
+собирает их в одну точку своего фокального экрана, и там они интерферируют.</p>
+<fig name="scheme"/>
+<fig name="beams"/>
+<p>Каждый следующий выходящий луч прошёл зазор ещё два раза (туда и обратно), поэтому отстаёт от предыдущего на
+разность хода Δ = 2nd·cos θ′, где θ′ — угол луча внутри зазора, n — показатель преломления среды в зазоре (воздух ≈ 1,
+стекло ≈ 1,5). Показатель преломления показывает, во сколько раз свет в среде медленнее, чем в вакууме; путь L в
+среде эквивалентен пути nL в вакууме (<b>оптический путь</b>).</p>
+
+<h2>3.4. Формула Эйри: вывод</h2>
+<p>Пусть амплитуда входящей волны 1. Амплитудный коэффициент пропускания зеркала $t$ (по интенсивности
+$t^2 = 1 - R - A$), амплитудный коэффициент отражения $r$ ($r^2 = R$). Первый выходящий луч прошёл два зеркала: $t^2$.
+Второй дополнительно дважды отразился и отстал по фазе на δ: $t^2 r^2 e^{i\delta}$. Третий: $t^2 r^4 e^{2i\delta}$ и так далее.
+Сумма — геометрическая прогрессия со знаменателем $q = R e^{i\delta}$:</p>
+<eq>E = t^2 \left(1 + q + q^2 + \ldots\right) = \frac{t^2}{1 - R e^{i\delta}}</eq>
+<p>(сумма бесконечной геометрической прогрессии $1/(1-q)$ при $|q| &lt; 1$). Интенсивность — квадрат модуля:</p>
+<eq>T = |E|^2 = \frac{(1-R-A)^2}{|1 - R e^{i\delta}|^2} = \frac{(1-R-A)^2}{1 - 2R\cos\delta + R^2}</eq>
+<p>Знаменатель переписывается через $\cos\delta = 1 - 2\sin^2(\delta/2)$: $1 - 2R + R^2 + 4R\sin^2(\delta/2) = (1-R)^2 + 4R\sin^2(\delta/2)$.
+Поделив числитель и знаменатель на $(1-R)^2$, получаем <b>формулу Эйри</b>:</p>
+<eq n="1">T = \frac{T_{\max}}{1 + F\sin^2(\delta/2)},\qquad F = \frac{4R}{(1-R)^2},\qquad T_{\max} = \frac{(1-R-A)^2}{(1-R)^2}</eq>
+<code ref="physics.airy" nodoc/>
+<code ref="physics.coefficient_f" nodoc/>
+<code ref="physics.peak_transmission" nodoc/>
+<ul>
+<li>Когда $\delta = 2\pi m$ (m — целое), $\sin(\delta/2) = 0$ и $T = T_{\max}$ — <b>пик</b> пропускания: все лучи приходят в фазе.</li>
+<li>Посередине между пиками $\sin^2 = 1$ и $T_{\min} = T_{\max}/(1+F)$. Отношение $T_{\max}/T_{\min} = 1 + F$ называется
+<b>контрастом</b>. При R = 0,9 F = 360: провалы в 361 раз темнее пиков.</li>
+<li>Без поглощения (A = 0) $T_{\max} = 1$: на пике проходит <b>весь</b> свет, хотя каждое зеркало отражает 90 %. Это не
+ошибка: отражённые назад волны гасят друг друга, и энергии некуда деваться, кроме как пройти.</li>
+<li>С поглощением пики ниже: при R = 0,95 и A = 0,02 $T_{\max} = (0{,}03/0{,}05)^2 = 0{,}36$. Свет много раз ходит между
+зеркалами и каждый раз теряет долю A. <span class="mono">max(1.0 - R - A, 0.0)</span> защищает от R + A &gt; 1 (зеркало не
+может отразить и поглотить больше 100 %).</li>
+</ul>
+<fig name="airy_family"/>
+
+<h2>3.5. Фаза δ и закон преломления</h2>
+<p>Разность фаз соседних лучей $\delta = 2\pi\cdot 2nd\cos\theta'/\lambda$. Удобнее выразить её через угол θ, под
+которым луч выходит из прибора в воздух: по закону Снеллиуса (закону преломления) $\sin\theta = n\sin\theta'$, отсюда
+$n\cos\theta' = \sqrt{n^2 - n^2\sin^2\theta'} = \sqrt{n^2 - \sin^2\theta}$:</p>
+<eq n="2">\delta = \frac{4\pi d\sqrt{n^2 - \sin^2\theta}}{\lambda}</eq>
+<code ref="physics.phase" nodoc/>
+<p>Аргумент <span class="mono">sin_out</span> — это sin θ. По умолчанию 0: свет идёт перпендикулярно зеркалам, и тогда
+δ = 4πnd/λ. Для графика T(λ) в программе берётся именно этот случай (надпись «свет падает перпендикулярно»).</p>
+
+<h2>3.6. Порядок интерференции</h2>
+<p>Условие пика $\delta = 2\pi m$ с формулой (2) даёт $2d\sqrt{n^2-\sin^2\theta} = m\lambda$: на удвоенной оптической
+толщине укладывается целое число m длин волн. Число m — <b>порядок интерференции</b>. В центре (θ = 0) дробный
+«порядок» $m_0 = 2nd/\lambda$; при λ = 632,8 нм, d = 5 мм m₀ ≈ 15 803. Функция <span class="mono">order_at</span> считает порядок в
+любой точке экрана — его показывает курсор над кольцами («m = …»).</p>
+
+<h2>3.7. Кольца</h2>
+<p>Если свет от протяжённого источника идёт под разными углами, у каждого угла свой δ. Условие пика выполняется на
+определённых углах θ_k, а из-за симметрии вокруг оси прибора одинаковый угол — это окружность. Линза с фокусным
+расстоянием f собирает лучи, идущие под углом θ, в точку на расстоянии $r = f\,\mathrm{tg}\,\theta$ от центра фокального
+экрана. Получаются концентрические светлые <b>кольца</b>.</p>
+<ul>
+<li>Порядок m убывает от центра к краю (cos θ уменьшается). Первое кольцо — наибольшее целое m, меньшее m₀.</li>
+<li>Для малых углов $\cos\theta \approx 1 - \theta^2/2$, $r \approx f\theta$. Подстановка в условие пика даёт</li>
+</ul>
+<eq n="3">r_k^2 = \frac{f^2 n\lambda}{d}\,(k - 1 + \varepsilon)</eq>
+<p>где k — номер кольца от центра (1, 2, 3…), ε — дробная часть m₀ (0 ≤ ε &lt; 1): насколько центр «не дошёл» до следующего
+кольца. Главное: <b>квадраты радиусов растут линейно с номером</b>, разность квадратов соседних колец одна и та же:
+$r_{k+1}^2 - r_k^2 = f^2 n\lambda/d$. Поэтому кольца сгущаются к краю, и поэтому в лабораторной строится график r² от k:
+по наклону находится λ.</p>
+<fig name="rings_linear"/>
+<code ref="physics.ring_radii" nodoc/>
+<p>Функция считает радиусы по <b>точной</b> формуле, без приближения малых углов: из $2d\sqrt{n^2 - s^2} = m\lambda$
+получаем $s^2 = \sin^2\theta = n^2 - (m\lambda/2d)^2$, потом $\mathrm{tg}\,\theta = s/\sqrt{1-s^2}$ и $r = f\,\mathrm{tg}\,\theta$.
+Запись через $a(m_0 - m)(n + ma)$ — это та же разность квадратов, но без потери точности (часть 2.9). Фильтр
+<span class="mono">(s2 &gt; 0) &amp; (s2 &lt; 1)</span> отбрасывает несуществующие углы.</p>
+
+<h2>3.8. Спектр пропускания T(λ) и область свободной дисперсии</h2>
+<p>Если зафиксировать угол (θ = 0) и менять длину волны, δ = 4πnd/λ тоже меняется, и пропускание проходит через пики.
+Соседние пики — это порядки m и m+1. Расстояние между ними по длине волны:</p>
+<eq n="4">\Delta\lambda = \frac{\lambda^2}{2nd},\qquad \Delta\nu = \frac{c}{2nd}</eq>
+<p>Вывод: $m\lambda_m = 2nd$, $(m+1)\lambda_{m+1} = 2nd$; разность $\lambda_m - \lambda_{m+1} = \lambda/(m+1) \approx \lambda^2/(2nd)$.
+По частоте всё точно: $\nu_m = mc/(2nd)$, шаг $c/(2nd)$.</p>
+<p>Δλ называется <b>областью свободной дисперсии</b> (англ. FSR — free spectral range, отсюда ключ
+<span class="mono">"fsr"</span> в коде). Смысл названия: если две линии спектра отличаются больше чем на Δλ, пик одной попадёт
+на соседний пик другой, и прибор их спутает («перекрытие порядков»). При d = 5 мм, λ = 632,8 нм Δλ ≈ 40 пм — очень
+маленький интервал: интерферометр Фабри — Перо сделан для изучения тонкой структуры очень узких участков спектра.</p>
+
+<h2>3.9. Ширина пика, резкость, разрешающая способность</h2>
+<fig name="peak_measures"/>
+<p><b>Ширина пика w</b> (полная ширина на половине высоты, англ. FWHM) — расстояние между точками, где T = Tmax/2.
+По фазе: $1 + F\sin^2(\delta/2) = 2$ → $\sin(\delta/2) = 1/\sqrt F$ → полуширина $\delta = 2\arcsin(1/\sqrt F)$, полная
+ширина по фазе $\delta_{1/2} = 4\arcsin(1/\sqrt F)$. Один период по фазе (2π) соответствует Δλ по длине волны, поэтому</p>
+<eq n="5">w = \Delta\lambda\,\frac{\delta_{1/2}}{2\pi},\qquad \mathcal{F} = \frac{\Delta\lambda}{w} = \frac{2\pi}{\delta_{1/2}} \approx \frac{\pi\sqrt R}{1 - R}</eq>
+<ul>
+<li>$\mathcal F$ — <b>резкость</b> (finesse): во сколько раз пик уже расстояния между пиками. Приближение справа получается
+из $\arcsin x \approx x$ при малом x (большом F); оно хорошо при R &gt; 0,5. При R = 0,9 резкость ≈ 30.</li>
+<li>Ширина существует, только если провалы ниже половины пика: $1/(1+F) &lt; 1/2$, то есть F &gt; 1, R &gt; 0,172. Иначе
+функция <span class="mono">theory</span> возвращает <span class="mono">None</span>, и в таблице прочерк.</li>
+<li><b>Разрешающая способность</b> $\mathcal A = \lambda/w = m_0\mathcal F$: какую относительную разницу длин волн прибор ещё
+различает. При m₀ ≈ 15 800 и $\mathcal F$ ≈ 30 получается ≈ 470 000: прибор различает линии, отличающиеся на 1/470 000
+длины волны (≈ 1,3 пм).</li>
+</ul>
+<code ref="physics.theory" nodoc/>
+
+<h3>Критерий разрешения и число 0,81</h3>
+<p>Две линии одинаковой яркости, разнесённые на δλ, дают сумму двух пиков. Пока пики далеко, между ними глубокий провал.
+Если сблизить — провал мельчает и исчезает, два пика сливаются в один. Где граница «различимы»? Классический
+<b>критерий Рэлея</b> для дифракционной решётки: максимум одной линии попадает на первый минимум другой; тогда яркость
+в середине составляет 8/π² ≈ 0,81 от максимума. Для пиков Эйри нет «первого минимума», поэтому программа берёт
+<b>ту же глубину провала</b>: линии различимы, если яркость посередине не больше 0,81 максимума. Эта граница
+получается при δλ ≈ 1,03·w — почти ровно ширина пика.</p>
+<fig name="resolution"/>
+<code ref="physics.dip_ratio" nodoc/>
+<code ref="physics.rayleigh_limit" nodoc/>
+<p>Поиск предела — метод деления пополам (часть 4.6). <span class="mono">dlam % fsr</span> в <span class="mono">verdict_text</span> —
+остаток от деления: при δλ больше Δλ картина повторяется.</p>
+
+<h2>3.10. Сдвиг зеркала</h2>
+<p>Если увеличить зазор на λ/(2n), оптическая толщина 2nd вырастет на λ, порядок в центре m₀ — на 1. В центре
+«рождается» новое кольцо, а все остальные отодвигаются наружу. Считая новые кольца N при сдвиге Δd, находят длину
+волны: $\Delta d_N = \Delta d_0 + N\lambda/(2n)$ — прямая, наклон которой λ/(2n).</p>
+<fig name="shift_linear"/>
+<code ref="physics.seamless_shift" nodoc/>
+<p>Анимация «Двигать зеркало» сдвигает Δd по кругу от 0 до наибольшего значения, кратного λ/(2n). Когда сдвиг кратен
+λ/(2n), картина точно такая же, как в начале, поэтому переход «конец → 0» незаметен.</p>
+
+<h2>3.11. Дублет и совпадение колец</h2>
+<p>Две близкие линии λ и λ + δλ дают две системы колец. При изменении d системы то расходятся, то совпадают. Кольца
+совпадают, когда в зазоре укладывается ровно на один порядок больше коротких волн: $2nd^* = m\lambda = (m-1)(\lambda+\delta\lambda)$,
+откуда $d^* = \lambda(\lambda+\delta\lambda)/(2n\,\delta\lambda) \approx \lambda^2/(2n\,\delta\lambda)$. Иначе говоря, при $d^*$
+область свободной дисперсии $\Delta\lambda$ как раз равна δλ. Измерив $d^*$, находят $\delta\lambda = \lambda^2/(2nd^*)$ — это
+задание 6.1.</p>
+
+<h2>3.12. Реалистичный режим</h2>
+<p>Настоящий прибор хуже идеального по трём причинам. Программа учитывает все три.</p>
+<ol>
+<li><b>Неплоскостность зеркал h.</b> Зеркала не идеально плоские: зазор в разных местах пучка от d − h/2 до d + h/2.
+Фаза в разных местах разная, от δ − a до δ + a, где $a = 2\pi n h/\lambda$ (изменение 2nd на nh даёт изменение фазы на
+2π·nh/λ). Приёмник складывает свет со всей площади, то есть <b>усредняет</b> T по окну фаз.</li>
+<li><b>Ширина спектральной линии Γ.</b> Источник светит не на одной длине волны, а в узком интервале ±Γ/2. Изменение
+длины волны на Δλ сдвигает фазу на 2π, поэтому ±Γ/2 дают размах фаз $\pm\pi\Gamma/\Delta\lambda$.</li>
+<li><b>Шум приёмника σ.</b> Каждое показание случайно «дрожит» на доли процента.</li>
+</ol>
+<p>Первые две причины независимы, поэтому их полуширины складываются как катеты: $a = \sqrt{a_1^2 + a_2^2}$ (так
+складываются независимые случайные разбросы). Результат — среднее функции Эйри по окну $[\delta - a, \delta + a]$:</p>
+<code ref="physics.blur_halfwidth" nodoc/>
+<code ref="physics.airy_blurred" nodoc/>
+<p>Что меняется: пики становятся ниже и шире, резкость падает. Что <b>не</b> меняется: положения пиков (усреднение
+симметрично) — поэтому длину волны по положениям пиков и колец можно определить точно. Предельная резкость из-за
+неплоскостности ≈ λ/(2nh): при h = λ/150 она около 75. По умолчанию h = λ/150, Γ = 0,05 пм, σ = 0,4 %.</p>
+
+<h2>3.13. Какая формула где в коде</h2>
+<table class="g wide">
+<tr><th>Формула</th><th>Функция</th><th>Где показывается</th></tr>
+<tr><td>T = Tmax / (1 + F sin²(δ/2))</td><td class="mono">physics.airy</td><td>все графики и кольца</td></tr>
+<tr><td>F = 4R/(1−R)²; Tmax = (1−R−A)²/(1−R)²</td><td class="mono">coefficient_f, peak_transmission</td><td>таблица</td></tr>
+<tr><td>δ = 4πd√(n² − sin²θ)/λ</td><td class="mono">phase</td><td>везде</td></tr>
+<tr><td>m₀ = 2nd/λ; m(r)</td><td class="mono">theory, order_at</td><td>таблица, курсор над кольцами</td></tr>
+<tr><td>Δλ = λ²/(2nd); Δν = c/(2nd)</td><td class="mono">theory</td><td>плитка, таблица</td></tr>
+<tr><td>w, резкость, разрешающая способность</td><td class="mono">theory</td><td>плитки, таблица</td></tr>
+<tr><td>радиусы колец</td><td class="mono">ring_radii</td><td>таблица «по формуле»</td></tr>
+<tr><td>r₂² − r₁² = f²nλ/d</td><td class="mono">theory ("dr2")</td><td>таблица</td></tr>
+<tr><td>провал 0,81</td><td class="mono">dip_ratio, rayleigh_limit</td><td>вывод под таблицей</td></tr>
+<tr><td>сдвиг λ/(2n)</td><td class="mono">seamless_shift</td><td>анимация</td></tr>
+<tr><td>размытие</td><td class="mono">blur_halfwidth, airy_blurred</td><td>реалистичный режим</td></tr>
+</table>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 4. Вычислительная математика программы</h1>
+<p class="partsub">Как программа сама «меряет» свои графики и почему быстро рисует</p>
+
+<h2>4.1. Две колонки таблицы: «по графику» и «по формуле»</h2>
+<p>«По формуле» — значения из части 3, посчитанные прямо. «По графику» — программа строит кривую из десятков тысяч точек и
+ищет на ней пики, половину высоты и т. д., как это делал бы человек. Если обе колонки совпадают, значит и формулы, и
+измерения верны. Значок у плиток показывает расхождение: зелёный меньше 1 %, жёлтый меньше 5 %, красный больше.</p>
+
+<h2>4.2. Сколько брать точек</h2>
+<code ref="physics.curve_samples" nodoc/>
+<p>На ширину пика должно прийтись не меньше 30 точек, иначе пик будет измерен грубо. Но не меньше 20 000 (чтобы широкие пики
+тоже были гладкими) и не больше 2 000 000 (чтобы не тормозить). <span class="mono">width or fsr</span> — если ширины нет
+(R слишком мало), берём Δλ.</p>
+
+<h2>4.3. Поиск пика и парабола</h2>
+<p>Самая высокая точка из дискретного набора — не точный пик: настоящая вершина лежит где-то между точками. Уточнение:
+через три точки (левую, среднюю, правую) проводим параболу и берём её вершину.</p>
+<fig name="parabola"/>
+<p>Вывод. Пусть точки стоят на x = −1, 0, +1 (в шагах сетки) со значениями L, M, P. Парабола
+$y = M + bx + cx^2$: из $y(-1) = L$ и $y(1) = P$ получаем $b = (P - L)/2$, $c = (L - 2M + P)/2$. Вершина: $x^* = -b/(2c) = \frac{(L-P)/2}{L - 2M + P}$ —
+в коде это <span class="mono">shift = 0.5*(left − right)/bend</span>. Высота вершины
+$y^* = M + bx^*/2 = M - \frac{1}{4}(L - P)x^*$ — это <span class="mono">mid − 0.25*(left − right)*shift</span>. Если
+<span class="mono">bend = 0</span> (три точки на прямой), деление запрещено через <span class="mono">np.divide(where=…)</span>, сдвиг 0.</p>
+
+<h2>4.4. Ширина на половине высоты: интерполяция</h2>
+<code ref="physics.measure_curve" nodoc/>
+<ol>
+<li>Найти пики, выбрать два соседних вокруг λ₁ (<span class="mono">searchsorted</span> даёт номер первого пика правее λ₁).
+<span class="mono">np.clip(…, 1, len(pos) − 1)</span> не даёт выйти за края списка.</li>
+<li>Δλ — разность их положений.</li>
+<li>Для ближайшего к λ₁ пика: уровень половины <span class="mono">half = top/2</span>. Слева от пика ищем последнюю точку ниже
+половины (<span class="mono">left[-1]</span>), справа — первую (<span class="mono">right[0]</span>).</li>
+<li>Между этой точкой и соседней кривая пересекает уровень; место пересечения находим <b>линейной интерполяцией</b>:
+считаем, что между двумя соседними точками кривая — прямая. <span class="mono">np.interp(half, [T[a], T[a+1]], [x[a], x[a+1]])</span>
+отвечает на вопрос «при каком x прямая через эти две точки равна half».</li>
+<li>Контраст — высота пика, делённая на минимум кривой.</li>
+</ol>
+
+<h2>4.5. Рисование по столбцам: минимум и максимум на отрезке</h2>
+<div class="plain"><p>Если нарисовать кривую по точкам и соединить их линиями, узкий пик может «проскочить» между
+точками и пропасть. Программа поступает как цифровой осциллограф: для каждого столбца пикселей находит, где кривая в
+этом столбце выше и ниже всего, и закрашивает полоску между ними. Тогда ни один пик не потеряется, сколько бы их ни было.</p></div>
+<fig name="columns"/>
+<code ref="physics.airy_range" nodoc/>
+<p>Для функции Эйри минимум и максимум на отрезке фаз [a, b] находятся без перебора. Функция периодична с периодом 2π,
+пики стоят на 2πm, провалы на π(2m+1). Если внутри отрезка есть число вида 2πm — максимум равен Tmax. Проверка:
+наибольшее кратное 2π, не превосходящее b, это <span class="mono">floor(b/2π)·2π</span>; если оно не меньше a — оно внутри
+отрезка. Аналогично для провалов со сдвигом на π. Если ни пика, ни провала внутри нет, функция на отрезке монотонна,
+и крайние значения — на концах.</p>
+
+<h2>4.6. Средняя яркость пикселя: первообразная</h2>
+<p>На картинке колец в один пиксель у края экрана могут попасть сотни тонких колец. Если взять яркость в центре пикселя,
+получится случайная точка на случайном кольце — картина покроется узорами (<b>муар</b>). Правильно — взять
+<b>среднее</b> яркости по ширине пикселя. Среднее функции на отрезке — это интеграл, делённый на длину отрезка. У функции
+Эйри есть первообразная:</p>
+<eq n="6">\int\frac{d\delta}{1 + F\sin^2(\delta/2)} = \frac{2}{\sqrt{1+F}}\,\mathrm{arctg}\left(\sqrt{1+F}\;\mathrm{tg}\frac{\delta}{2}\right)</eq>
+<p>(проверяется дифференцированием). Но tg(δ/2) обращается в бесконечность при δ = π, и арктангенс «перескакивает» с
++π/2 на −π/2. Поэтому фаза раскладывается на номер периода k и остаток φ ∈ [−π, π): δ = 2πk + φ. За каждый полный период
+интеграл набирает $2\pi/\sqrt{1+F}$ («ступенька»), а внутри периода считается по формуле (6).</p>
+<fig name="antiderivative"/>
+<code ref="physics.airy_mean" nodoc/>
+<ul>
+<li><span class="mono">k = floor(δ/2π + 0,5)</span> — номер периода, в котором φ = δ − 2πk попадает в [−π, π).</li>
+<li>Интеграл от d1 до d2 = (2/q)·(π(k2 − k1) + (arctg₂ − arctg₁)), где q = √(1+F). Делим на длину — получаем среднее.</li>
+<li>Если отрезок почти нулевой, делить нельзя; тогда берётся просто значение в середине. <span class="mono">np.where</span>
+выбирает одно из двух для каждого элемента.</li>
+</ul>
+<p>Так средняя яркость любого пикселя считается одной формулой, а не суммированием миллионов точек.</p>
+
+<h2>4.7. Поиск колец «по картинке»</h2>
+<code ref="physics.measure_rings" nodoc/>
+<ul>
+<li>Точки берутся равномерно не по радиусу, а по u = sin²θ. Фаза $\propto\sqrt{n^2 - u}$ почти линейна по u, поэтому на
+каждое кольцо приходится одинаковое число точек (по 6), хотя кольца к краю сгущаются.</li>
+<li><span class="mono">periods</span> — сколько раз фаза проходит 2π от центра до края, то есть сколько колец.
+Число точек — 6 на кольцо, но от 2000 до 150 000.</li>
+<li>Максимумы находятся как в <span class="mono">find_peaks</span>, затем первые 300 уточняются «микроскопом»: 3 раза вокруг
+лучшей точки берутся 33 точки, шаг каждый раз в 16 раз мельче. После трёх шагов точность в 16³ = 4096 раз выше шага
+исходной сетки.</li>
+<li>Кольца ближе к центру, чем 2 шага сетки (<span class="mono">near</span>), не считаются: это «пятно в центре», а не кольцо.
+Радиус по u: $\mathrm{tg}\,\theta = \sqrt{u/(1-u)}$, $r = f\,\mathrm{tg}\,\theta$.</li>
+</ul>
+
+<h2>4.8. Метод деления пополам (бисекция)</h2>
+<p>Задача: найти δλ, при котором провал ровно 0,81. Известно, что при малом δλ провала нет (отношение &gt; 0,81), при большом —
+есть. Берём отрезок [lo, hi], смотрим середину: если там провала ещё нет, ответ правее — сдвигаем lo в середину,
+иначе hi. Каждый шаг вдвое сужает отрезок; 60 шагов сужают его в 2⁶⁰ ≈ 10¹⁸ раз — точнее, чем хранится число. Метод
+надёжен: не нужна производная, и он не может «убежать».</p>
+
+<h2>4.9. Логарифмическая шкала ползунка</h2>
+<p>δλ задаётся от 0,01 до 2000 пм — в 200 000 раз. На обычной шкале первое деление ползунка из 1000 было бы уже 2 пм, и
+малые значения не выставить. На логарифмической шкале равные шаги ползунка — это равные <b>отношения</b>:
+$\delta\lambda = lo\cdot(hi/lo)^t$, t от 0 до 1. Каждые 200 делений значение растёт в 10 раз.</p>
+<code ref="params.ParamRow.to_slider" nodoc/>
+<code ref="params.ParamRow.from_slider_pos" nodoc/>
+
+<h2>4.10. «Круглые» деления осей</h2>
+<code ref="fmt.ticks" nodoc/>
+<ol>
+<li>Желаемый шаг raw = диапазон / 6.</li>
+<li>Порядок mag = 10^floor(log10(raw)): для raw = 0,037 это 0,01.</li>
+<li>Из кандидатов 1, 2, 5, 10 × mag выбирается ближайший к raw «в разах» (по модулю логарифма отношения): 0,05.</li>
+<li>Первое деление — ближайшее кратное шагу не меньше lo; дальше с этим шагом до hi.</li>
+</ol>
+<p><span class="mono">tick_text</span> пишет подпись с числом знаков после запятой, которое требует шаг: для шага 0,05 — два знака.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 5. Погрешности, МНК и лабораторный режим</h1>
+
+<h2>5.1. Погрешности измерений: главное</h2>
+<ul>
+<li>Любое измерение отличается от истинного значения. <b>Случайная</b> погрешность меняется от раза к разу (шум,
+неточность щелчка), <b>систематическая</b> — одинакова всегда (например, неправильная формула).</li>
+<li>Если измерить величину N раз, лучшая оценка — <b>среднее</b> $\bar x = \frac1N\sum x_i$.</li>
+<li>Разброс характеризует <b>выборочное стандартное отклонение</b> $s = \sqrt{\frac{\sum(x_i - \bar x)^2}{N-1}}$. Деление на
+N − 1, а не на N: одна «степень свободы» потрачена на вычисление среднего.</li>
+<li>Среднее точнее одного измерения в √N раз: стандартное отклонение среднего $s/\sqrt N$.</li>
+<li><b>Доверительная граница</b> $\Delta = t\cdot s/\sqrt N$, где t — <b>коэффициент Стьюдента</b>. Он показывает, во сколько
+стандартных отклонений надо отступить, чтобы с вероятностью 0,95 истинное значение попало в интервал $\bar x \pm \Delta$.
+При малом числе измерений t большой (2 измерения — 12,7; 5 — 2,78), при большом стремится к 1,96.</li>
+<li>Результат пишут как $(\bar x \pm \Delta)$ единица, погрешность — одной-двумя значащими цифрами, среднее — до того же разряда.</li>
+</ul>
+<code ref="lab.mean_with_error" nodoc/>
+<code ref="lab.student" nodoc/>
+
+<h2>5.2. Метод наименьших квадратов (МНК)</h2>
+<div class="plain"><p>Точки на графике почти ложатся на прямую, но не точно. Какая прямая «лучше всех»? Та, у
+которой сумма квадратов вертикальных отклонений точек от неё наименьшая. Это и есть МНК.</p></div>
+<p>Ищем прямую y = a + bx, минимизирующую $S(a,b) = \sum(y_i - a - bx_i)^2$. В минимуме производные по a и b равны нулю;
+решение этих двух уравнений:</p>
+<eq n="7">b = \frac{\sum(x_i-\bar x)(y_i - \bar y)}{\sum(x_i - \bar x)^2},\qquad a = \bar y - b\bar x</eq>
+<p>Разброс точек вокруг прямой: $s^2 = \frac{\sum(y_i - a - bx_i)^2}{n-2}$ (две степени свободы потрачены на a и b). Отсюда
+стандартные отклонения коэффициентов:</p>
+<eq n="8">\sigma_b = \frac{s}{\sqrt{\sum(x_i-\bar x)^2}},\qquad \sigma_a = s\sqrt{\frac1n + \frac{\bar x^2}{\sum(x_i-\bar x)^2}}</eq>
+<p>Доверительные границы $\Delta b = t\sigma_b$, $\Delta a = t\sigma_a$ с t для n − 2 степеней свободы.</p>
+<p><b>Прямая через начало координат</b> y = bx (когда теория говорит, что a = 0): $b = \sum x_iy_i/\sum x_i^2$,
+$s^2 = \sum(y_i - bx_i)^2/(n-1)$, $\sigma_b = s/\sqrt{\sum x_i^2}$.</p>
+<code ref="lab.fit_line" nodoc/>
+<p>Функция возвращает словарь, чтобы вызывающий код брал нужное по имени: <span class="mono">fit["b"]</span>,
+<span class="mono">fit["db"]</span>. <span class="mono">float("nan")</span> — «не число» там, где погрешность не определена (две точки для
+прямой общего вида: 0 степеней свободы).</p>
+
+<h2>5.3. Линеаризация</h2>
+<p>МНК умеет только прямые, поэтому каждую зависимость переписывают так, чтобы она стала прямой:</p>
+<table class="g wide">
+<tr><th>Задание</th><th>Физика</th><th>Ось x</th><th>Ось y</th><th>Наклон b</th><th>Искомое</th></tr>
+<tr><td>2. Δλ(d)</td><td>Δλ = λ²/(2nd)</td><td>1/d</td><td>Δλ</td><td>λ²/(2n)</td><td>λ = √(2nb)</td></tr>
+<tr><td>3. w(R)</td><td>w ≈ Δλ(1−R)/(π√R)</td><td>(1−R)/√R</td><td>w</td><td>Δλ/π</td><td>Δλ = πb</td></tr>
+<tr><td>4. кольца</td><td>r² = f²nλ/d·(k−1+ε)</td><td>k</td><td>r²</td><td>f²nλ/d</td><td>λ = bd/(f²n)</td></tr>
+<tr><td>5. сдвиг</td><td>Δd = Δd₀ + Nλ/(2n)</td><td>N</td><td>Δd</td><td>λ/(2n)</td><td>λ = 2nb</td></tr>
+</table>
+<code ref="lab.derived" nodoc/>
+<p>Единицы: в задании 2 Δλ в пм, 1/d в мм⁻¹, значит b в пм·мм = 10⁻¹² · 10⁻³ м² = 10⁻¹⁵ м²; отсюда множитель
+<span class="mono">1e-15</span>, а <span class="mono">* 1e9</span> переводит метры в нанометры.</p>
+
+<h2>5.4. Перенос погрешностей</h2>
+<p>Если y = f(x), то $\Delta y \approx |f'(x)|\,\Delta x$. Частные случаи из программы:</p>
+<ul>
+<li>$\lambda = \sqrt{2nb\cdot10^{-15}}$ ~ √b: относительная погрешность вдвое меньше: $\Delta\lambda/\lambda = \Delta b/(2b)$ →
+<span class="mono">lam * db / (2 * b)</span>.</li>
+<li>λ ~ b: $\Delta\lambda/\lambda = \Delta b/b$ → <span class="mono">lam * db / b</span>.</li>
+<li>Произведение и частное независимых величин: относительные погрешности складываются квадратично. Для
+$\delta\lambda = \lambda^2/(2nd^*)$: $\varepsilon = \sqrt{(2\Delta\lambda/\lambda)^2 + (\Delta d^*/d^*)^2}$ →
+<span class="mono">math.hypot(2 * dlam_err / lam, e / m)</span>. Двойка — потому что λ в квадрате.</li>
+</ul>
+
+<h2>5.5. Варианты: откуда берутся скрытые значения</h2>
+<code ref="lab.Variant.__init__"/>
+<div class="plain"><p>Компьютер не умеет выдавать по-настоящему случайные числа — он считает их по формуле из
+начального числа, «зерна» (seed). Одно и то же зерно — одна и та же последовательность. Поэтому вариант 7 даёт одни и
+те же λ, δλ, A на любом компьютере, в любой день, и преподаватель может заранее посчитать ответы.</p></div>
+<ul>
+<li><span class="mono">random.Random("fabry-perot-variant-7")</span> — свой генератор с зерном-строкой. Строка превращается в
+число одинаково на всех системах (в отличие от встроенной функции <span class="mono">hash</span>, которая для строк
+меняется от запуска к запуску). Свой генератор не зависит от остальной программы: сколько бы раз кто-то ни вызывал
+<span class="mono">random</span> в другом месте, варианты не изменятся.</li>
+<li><span class="mono">round(rng.uniform(450.0, 690.0), 1)</span> — случайная длина волны с шагом 0,1 нм.</li>
+<li><span class="mono">rng.choice([...])</span> — случайный элемент списка; <span class="mono">rng.shuffle(options)</span> — перемешивание.</li>
+<li>Для задания с кольцами перебираются пары (d, f) в случайном порядке, пока на экране радиусом 10 мм не окажется хотя
+бы 7 колец. Цикл <span class="mono">for … break</span>: после <span class="mono">break</span> переменные <span class="mono">d, f</span> хранят
+найденную пару.</li>
+</ul>
+
+<h2>5.6. Серии и журнал</h2>
+<p>Каждое задание — объект <span class="mono">Series</span>. Поле <span class="mono">kind</span> говорит, как записывается точка:</p>
+<ul>
+<li><b>pair</b> — два правых щелчка по графику T(λ): y = |x₂ − x₁|. Первый щелчок запоминается в
+<span class="mono">journal.pending</span>, второй даёт точку. x — функция текущего параметра (<span class="mono">xfunc(ctx[xkey])</span>,
+например 1/d).</li>
+<li><b>ring</b> — щелчок по кольцу: y = r², x — номер кольца по порядку.</li>
+<li><b>param</b> — кнопка «Записать»: запоминается текущее значение параметра (<span class="mono">source</span>).</li>
+<li><b>point</b> — просто показание курсора.</li>
+</ul>
+<p>Точка хранится словарём <span class="mono">{"x", "y", "note", "ctx"}</span>, где ctx — параметры окна в момент записи (n, d, f, R).
+Все серии — словарь списков <span class="mono">self.data</span>. Он превращается в текст JSON (<span class="mono">json.dumps</span>) и
+сохраняется в настройках после каждого изменения; при запуске читается обратно (<span class="mono">load_json</span>) с проверкой,
+что каждая запись — словарь с x и y (защита от испорченного файла).</p>
+<p><span class="mono">known_lambda</span> выбирает среди серий 2, 4, 5 ту, где λ получилась с наименьшей относительной
+погрешностью, и использует её в заданиях 6 и 7.</p>
+<p>Задание 7 (поглощение): из $T_{\max} = (1-R-A)^2/(1-R)^2$ следует $\sqrt{T_{\max}} = 1 - A/(1-R)$, $A = (1-R)(1-\sqrt{T_{\max}})$.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 6. Qt: как устроено окно</h1>
+<p class="partsub">Библиотека окон, кнопок и рисования</p>
+
+<h2>6.1. Qt, PyQt5 и PyQt6</h2>
+<p><b>Qt</b> (читается «кьют») — большая библиотека на языке C++ для программ с окнами. Она одна и та же на Windows, macOS
+и Linux: программа пишется один раз. <b>PyQt</b> — «переходник», через который Qt вызывается из Python. Есть две
+версии: PyQt5 (для Qt 5) и PyQt6 (для Qt 6). Qt 6 работает только на Windows 10 и новее, поэтому для Windows 7/8/8.1
+нужен PyQt5. Различия между ними мелкие, и все они собраны в <span class="mono">qt.py</span>:</p>
+<code ref="qt"/>
+<ul>
+<li>В Qt 6 перечисления (наборы констант) пишутся полностью: <span class="mono">Qt.AlignmentFlag.AlignCenter</span>. В PyQt5
+такая запись тоже работает (начиная с 5.11), поэтому в программе везде полная форма — она подходит обоим.</li>
+<li><span class="mono">QAction</span> в Qt 6 переехал в модуль QtGui.</li>
+<li>Положение мыши в событии: <span class="mono">event.position()</span> в Qt 6, <span class="mono">event.localPos()</span> в Qt 5.</li>
+<li>Остальные модули пишут <span class="mono">from .qt import …</span> и не знают, какая версия подключена.</li>
+</ul>
+<p>Три главных модуля Qt: <b>QtCore</b> — основа без графики (таймеры, сигналы, настройки, точки и прямоугольники);
+<b>QtGui</b> — рисование (цвета, шрифты, картинки, художник QPainter); <b>QtWidgets</b> — элементы окна (кнопки, поля,
+таблицы).</p>
+
+<h2>6.2. Приложение и цикл событий</h2>
+<div class="plain"><p>Программа с окном не выполняется «сверху вниз до конца». После создания окна она входит в
+<b>цикл событий</b>: бесконечно ждёт, что что-то произойдёт (щелчок, нажатие клавиши, сработал таймер, окну нужно
+перерисоваться), и вызывает нужную функцию. Потом снова ждёт. Цикл заканчивается, когда закрыли последнее окно.</p></div>
+<code ref="app.create_app" nodoc/>
+<ul>
+<li><span class="mono">QApplication</span> — объект «программа целиком». Он один на программу и должен быть создан раньше любого
+виджета.</li>
+<li><span class="mono">app.exec()</span> в <span class="mono">main()</span> — запуск цикла событий. Отсюда управление не вернётся, пока
+программа работает.</li>
+<li>Отсюда важное правило: <b>функция, вызванная из цикла, должна быстро закончиться</b>. Пока она работает, окно не
+перерисовывается и не реагирует на мышь («зависает»). Поэтому пересчёт сделан быстрым (10 мс), а анимация идёт через
+таймер, а не через цикл с <span class="mono">sleep</span>.</li>
+<li><span class="mono">setStyle("Fusion")</span> — встроенный в Qt стиль, одинаковый на всех системах; без него кнопки выглядели
+бы по-разному на Windows и macOS, и наша таблица стилей ложилась бы на них по-разному.</li>
+<li><span class="mono">font.setFamilies(FONTS)</span> — список шрифтов по порядку предпочтения: Segoe UI есть на Windows, SF Pro на
+macOS, Ubuntu/Cantarell/Noto на Linux. Qt берёт первый найденный.</li>
+<li><span class="mono">QLocale</span> — «местные правила»: русская локаль делает десятичную запятую в полях ввода.</li>
+<li>Настройки HiDPI — в части 6.10.</li>
+</ul>
+
+<h2>6.3. Виджеты</h2>
+<p><b>Виджет</b> — любой элемент окна: кнопка, надпись, поле, таблица и само окно. Все они наследники
+<span class="mono">QWidget</span>. Виджеты вложены друг в друга: у каждого есть <b>родитель</b>; при удалении родителя удаляются
+и дети. Виджеты, которые использует программа:</p>
+<table class="g wide">
+<tr><th>Класс</th><th>Что это</th><th>Где</th></tr>
+<tr><td class="mono">QMainWindow</td><td>главное окно со строкой состояния внизу</td><td class="mono">MainWindow</td></tr>
+<tr><td class="mono">QWidget</td><td>пустой прямоугольник-контейнер; основа своих виджетов</td><td>страницы, Plot, RingView</td></tr>
+<tr><td class="mono">QLabel</td><td>надпись или картинка; понимает простой HTML (<span class="mono">&lt;b&gt;</span>, <span class="mono">&lt;br&gt;</span>)</td><td>подписи, итог журнала</td></tr>
+<tr><td class="mono">QPushButton</td><td>кнопка; <span class="mono">setCheckable(True)</span> делает её «залипающей»</td><td>примеры, шапка</td></tr>
+<tr><td class="mono">QSlider</td><td>ползунок с целыми положениями</td><td>параметры</td></tr>
+<tr><td class="mono">QDoubleSpinBox, QSpinBox</td><td>поле ввода дробного и целого числа</td><td>параметры, номер варианта</td></tr>
+<tr><td class="mono">QCheckBox</td><td>флажок; наш <span class="mono">ToggleSwitch</span> — его наследник с другим рисунком</td><td>переключатели</td></tr>
+<tr><td class="mono">QComboBox</td><td>выпадающий список</td><td>выбор серии в журнале</td></tr>
+<tr><td class="mono">QLineEdit</td><td>поле ввода строки</td><td>фамилия, группа</td></tr>
+<tr><td class="mono">QTableWidget</td><td>таблица с ячейками <span class="mono">QTableWidgetItem</span></td><td>результаты, журнал</td></tr>
+<tr><td class="mono">QFrame</td><td>виджет с рамкой — основа карточек</td><td class="mono">make_card</td></tr>
+<tr><td class="mono">QScrollArea</td><td>прокручиваемая область</td><td>левая колонка</td></tr>
+<tr><td class="mono">QSplitter</td><td>разделитель, который можно тянуть мышью</td><td>три колонки, графики</td></tr>
+<tr><td class="mono">QStackedWidget</td><td>стопка страниц, видна одна</td><td>«Результаты» / «Журнал»</td></tr>
+<tr><td class="mono">QButtonGroup</td><td>группа кнопок, где нажата только одна</td><td>примеры</td></tr>
+<tr><td class="mono">QDialog</td><td>отдельное окно-вопрос; <span class="mono">exec()</span> ждёт, пока его закроют, и возвращает «ОК» или «Отмена»</td><td class="mono">LabDialog</td></tr>
+<tr><td class="mono">QMessageBox</td><td>готовые окна сообщений и вопросов «Да/Нет»</td><td>справка, ошибки</td></tr>
+<tr><td class="mono">QFileDialog</td><td>стандартное окно «Сохранить как…»</td><td>сохранение файлов</td></tr>
+</table>
+<p>У виджетов есть общие методы: <span class="mono">show(), hide(), setVisible(bool)</span>; <span class="mono">setEnabled(bool)</span>
+(серый и не нажимается); <span class="mono">setToolTip(текст)</span> (подсказка при наведении); <span class="mono">setObjectName(имя)</span>
+(имя для таблицы стилей); <span class="mono">setMinimumSize, setFixedWidth</span>; <span class="mono">width(), height(), rect()</span>;
+<span class="mono">update()</span> (попросить перерисовать); <span class="mono">setCursor</span>; <span class="mono">grab()</span> (снимок в картинку).</p>
+
+<h2>6.4. Компоновки (layouts)</h2>
+<div class="plain"><p>Виджеты не расставляются по координатам вручную. Их кладут в <b>компоновку</b>, и она сама
+расставляет и растягивает их при изменении размера окна.</p></div>
+<ul>
+<li><span class="mono">QVBoxLayout</span> — друг под другом; <span class="mono">QHBoxLayout</span> — в строку.</li>
+<li><span class="mono">QGridLayout</span> — сетка: <span class="mono">grid.addWidget(w, строка, столбец)</span>. Каждый параметр занимает
+две строки сетки (сверху название и пределы, снизу ползунок и поле). <span class="mono">setColumnStretch(0, 1)</span> — первый
+столбец забирает всё лишнее место.</li>
+<li><span class="mono">QFormLayout</span> — «подпись: поле» в две колонки (окно лабораторной).</li>
+<li><span class="mono">addWidget(w, 1)</span> — второй аргумент <b>stretch</b>: доля лишнего места. <span class="mono">addStretch()</span> —
+пустая «пружина», которая отталкивает остальное.</li>
+<li><span class="mono">setContentsMargins(лево, верх, право, низ)</span> — поля; <span class="mono">setSpacing</span> — промежуток между
+элементами.</li>
+<li><b>Политика размера</b> (<span class="mono">QSizePolicy</span>): насколько виджет согласен сжиматься и растягиваться. У подзаголовка
+в шапке стоит <span class="mono">Ignored</span>: его желаемая ширина не учитывается, и на узком экране он обрезается, а не раздвигает
+окно.</li>
+<li>Компоновки вкладываются: <span class="mono">layout.addLayout(другая)</span>.</li>
+</ul>
+<fig name="layout"/>
+
+<h2>6.5. Сигналы и слоты</h2>
+<div class="plain"><p>Виджеты сообщают о событиях <b>сигналами</b>: «меня нажали», «моё значение изменилось». К сигналу
+можно <b>подключить</b> любую функцию (её называют слотом). Когда сигнал испускается, Qt вызывает все подключённые
+функции. Кнопка не знает, что делает окно, а окно не опрашивает кнопку — они связаны только подключением.</p></div>
+<pre class="ex">button.clicked.connect(self.save_png)              # щелчок → сохранить снимок
+self.slider.valueChanged.connect(self.slider_moved)  # новое положение → функция получит число
+self.ring_view.hovered.connect(self.plot_r.set_hover)  # сигнал одного виджета → метод другого</pre>
+<p>Стандартные сигналы, которые использует программа: <span class="mono">clicked</span> (кнопка), <span class="mono">toggled(bool)</span>
+(переключатель), <span class="mono">valueChanged</span> (ползунок, поле), <span class="mono">currentIndexChanged</span> (список),
+<span class="mono">timeout</span> (таймер), <span class="mono">accepted/rejected</span> (кнопки диалога), <span class="mono">sectionResized</span>
+(ширина столбца таблицы).</p>
+<h3>Свои сигналы</h3>
+<pre class="ex">class Plot(QtWidgets.QWidget):
+    hovered = Signal(object)          # объявление: сигнал с одним значением любого типа
+    picked = Signal(float, float)     # сигнал с двумя дробными числами
+    ...
+        self.picked.emit(x, y)        # испустить: все подключённые функции получат (x, y)</pre>
+<p>Сигнал объявляется как атрибут класса (<span class="mono">Signal</span> — это <span class="mono">pyqtSignal</span>), а испускается
+методом <span class="mono">emit</span>. <span class="mono">object</span> нужен для <span class="mono">hovered</span>, потому что передаётся либо
+число, либо <span class="mono">None</span> (мышь ушла).</p>
+<h3>Связь курсоров</h3>
+<p>Разрез колец и картина колец подключены друг к другу «крест-накрест»: наведение на кольца испускает
+<span class="mono">hovered(радиус)</span>, разрез ставит свой пунктир на тот же радиус — и наоборот. Зацикливания нет, потому
+что <span class="mono">set_hover</span> не испускает сигнал обратно.</p>
+<h3><span class="mono">blockSignals</span></h3>
+<p>Ползунок и поле связаны в обе стороны: сдвинул ползунок — поле обновилось; ввёл число — ползунок сдвинулся. Без защиты
+получилось бы эхо: поле меняет ползунок, ползунок шлёт сигнал и снова меняет поле (с округлением до 1/1000 шкалы!).
+<span class="mono">slider.blockSignals(True)</span> временно «глушит» сигналы ползунка на время программной установки.</p>
+<code ref="params.ParamRow.spin_changed" nodoc/>
+
+<h2>6.6. События</h2>
+<p>Кроме сигналов, Qt вызывает у виджета методы-события. Переопределив их в своём классе, виджет реагирует по-своему:</p>
+<table class="g wide">
+<tr><th>Метод</th><th>Когда вызывается</th><th>Что делает у нас</th></tr>
+<tr><td class="mono">paintEvent</td><td>виджет нужно нарисовать (появился, изменился, вызван <span class="mono">update()</span>)</td><td>рисует график, кольца, тумблер</td></tr>
+<tr><td class="mono">mouseMoveEvent</td><td>мышь двигается (при <span class="mono">setMouseTracking(True)</span> — и без нажатой кнопки)</td><td>курсор, перетаскивание</td></tr>
+<tr><td class="mono">mousePressEvent / mouseReleaseEvent</td><td>кнопку мыши нажали / отпустили</td><td>правый щелчок — в журнал; левый — начать перетаскивание</td></tr>
+<tr><td class="mono">mouseDoubleClickEvent</td><td>двойной щелчок</td><td>сброс масштаба</td></tr>
+<tr><td class="mono">wheelEvent</td><td>колёсико</td><td>масштаб графика, лупа</td></tr>
+<tr><td class="mono">leaveEvent</td><td>мышь ушла с виджета</td><td>убрать курсор</td></tr>
+<tr><td class="mono">resizeEvent</td><td>изменился размер</td><td>выбросить готовую картинку</td></tr>
+<tr><td class="mono">closeEvent</td><td>окно закрывают</td><td>сохранить настройки</td></tr>
+</table>
+<ul>
+<li><span class="mono">event.button()</span> — какая кнопка мыши (<span class="mono">Qt.MouseButton.RightButton</span>…).</li>
+<li><span class="mono">event.angleDelta().y()</span> — поворот колёсика; один «щелчок» колеса = 120 единиц.</li>
+<li><span class="mono">event.accept()</span> — «событие обработано, дальше не передавать» (иначе колёсико прокрутило бы ещё и
+левую колонку).</li>
+<li><span class="mono">update()</span> не рисует сразу, а ставит в очередь; несколько вызовов подряд дадут одну перерисовку.
+Рисовать можно <b>только</b> внутри <span class="mono">paintEvent</span>.</li>
+</ul>
+
+<h2>6.7. Таймеры</h2>
+<ul>
+<li><span class="mono">QTimer</span> испускает сигнал <span class="mono">timeout</span> через заданный интервал (мс). Обычный — повторяется,
+<span class="mono">setSingleShot(True)</span> — один раз. <span class="mono">start()</span>, <span class="mono">stop()</span>, <span class="mono">isActive()</span>.</li>
+<li><span class="mono">QTimer.singleShot(1500, функция)</span> — вызвать функцию один раз через 1,5 с (самопроверка).</li>
+<li><span class="mono">QElapsedTimer</span> — секундомер: <span class="mono">start()</span>, потом <span class="mono">elapsed()</span> — сколько миллисекунд прошло.</li>
+</ul>
+<p>В окне три таймера:</p>
+<ol>
+<li><span class="mono">timer</span> (одноразовый, 15 мс) → <span class="mono">recalc</span>. Ползунок при движении шлёт десятки сигналов;
+<span class="mono">schedule()</span> запускает таймер, только если он не запущен. Все сигналы за 15 мс сливаются в один пересчёт.</li>
+<li><span class="mono">tween_timer</span> (16 мс, ≈ 60 кадров в секунду) → <span class="mono">tween_step</span>, плавные переходы.</li>
+<li><span class="mono">scan_timer</span> (30 мс) → <span class="mono">scan_step</span>, анимация зеркала.</li>
+</ol>
+<p>Таймер срабатывает внутри цикла событий, поэтому между кадрами окно успевает обработать мышь и перерисоваться.</p>
+
+<h2>6.8. Настройки между запусками: QSettings</h2>
+<pre class="ex">s = QtCore.QSettings(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope,
+                     "SELF-BMSTU", "FabryPerot")
+s.setValue("params/lam", 632.8)             # записать
+s.value("params/lam")                       # прочитать (придёт строка "632.8" — поэтому float(...))
+s.value("glow", True, type=bool)            # со значением по умолчанию и нужным типом</pre>
+<ul>
+<li>Формат INI — простой текстовый файл «ключ=значение» с разделами <span class="mono">[params]</span>. Лежит на Windows в
+<span class="mono">%APPDATA%\SELF-BMSTU\FabryPerot.ini</span>, на macOS и Linux в <span class="mono">~/.config/SELF-BMSTU/FabryPerot.ini</span>.
+Без <span class="mono">IniFormat</span> Qt на Windows писал бы в реестр.</li>
+<li>Косая черта в ключе делает раздел: <span class="mono">params/lam</span> → раздел <span class="mono">[params]</span>, ключ <span class="mono">lam</span>.</li>
+<li><span class="mono">saveGeometry()/restoreGeometry()</span> — размер и положение окна одной «упаковкой» байтов.</li>
+<li>Значения, прочитанные из файла, проверяются: число приводится к <span class="mono">float</span> и зажимается в допустимые
+пределы (<span class="mono">min(max(…, lo), hi)</span>). Файл мог испортиться или остаться от старой версии.</li>
+</ul>
+
+<h2>6.9. Горячие клавиши</h2>
+<code ref="window.MainWindow.build_actions" nodoc/>
+<p><span class="mono">QAction</span> — «действие», к которому привязывается сочетание клавиш. <span class="mono">QKeySequence("Ctrl+S")</span>
+разбирает запись сочетания; на macOS Ctrl автоматически становится ⌘. <span class="mono">self.addAction(action)</span> — действие
+работает, пока окно активно.</p>
+
+<h2>6.10. Чёткость на экранах с масштабом (HiDPI)</h2>
+<div class="plain"><p>На экране ноутбука с масштабом 150 % одна «точка» интерфейса — это 1,5 физических пикселя; на
+Retina (Mac) — 2 пикселя. Если нарисовать картинку по точкам, а экран растянет её в 1,5 раза, она станет мыльной.</p></div>
+<ul>
+<li>Размеры виджетов в Qt — в логических <b>точках</b>. <span class="mono">devicePixelRatioF()</span> — сколько физических пикселей в
+точке (1; 1,25; 1,5; 2).</li>
+<li>Поэтому все свои картинки программа создаёт в физических пикселях (ширина × ratio) и сообщает Qt
+<span class="mono">image.setDevicePixelRatio(ratio)</span>: «эта картинка плотная, рисуй её в ratio раз мельче». Получается
+чёткость пиксель в пиксель.</li>
+<li>В Qt 5 это включается вручную атрибутами <span class="mono">AA_EnableHighDpiScaling</span> и
+<span class="mono">AA_UseHighDpiPixmaps</span> до создания приложения; в Qt 6 включено всегда.</li>
+<li><span class="mono">HighDpiScaleFactorRoundingPolicy.PassThrough</span> — не округлять 1,25 до 1 или 1,5 до 2, а использовать
+точный масштаб. Иначе на 125 % всё было бы либо мелким, либо огромным.</li>
+</ul>
+
+<h2>6.11. Главное окно целиком</h2>
+<p>Конструктор <span class="mono">MainWindow.__init__</span> по шагам:</p>
+<ol>
+<li>Заводит атрибуты-«состояние»: <span class="mono">shown</span> (значения, которые сейчас на картинке), <span class="mono">tweens</span>
+(идущие переходы), <span class="mono">lab</span> (вариант или None), секундомер, настройки, три таймера.</li>
+<li>Собирает страницу: шапка (<span class="mono">build_header</span>), под ней горизонтальный разделитель из трёх колонок —
+параметры (<span class="mono">build_controls</span>), графики (<span class="mono">build_views</span>), результаты и журнал
+(<span class="mono">build_results</span>). <span class="mono">setStretchFactor(1, 1)</span> — при растяжении окна растёт средняя колонка.</li>
+<li>Горячие клавиши, номер версии в строке состояния.</li>
+<li>Размер окна — 92 % × 90 % доступной части экрана (<span class="mono">availableGeometry</span> — без панели задач).</li>
+<li><span class="mono">restore()</span> — настройки прошлого запуска и первый расчёт. Флаг <span class="mono">ready = True</span> в конце: пока
+окно строится, плавных переходов нет, значения ставятся сразу.</li>
+</ol>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 7. Визуал: цвета, темы, рисование</h1>
+
+<h2>7.1. Как задаётся цвет</h2>
+<ul>
+<li><b>RGB</b> — три числа 0…255: сколько красного, зелёного, синего. Экран смешивает их: (255, 255, 0) — жёлтый.</li>
+<li><b>Шестнадцатеричная запись</b> <span class="mono">#35D0BA</span>: по две цифры на канал в системе счисления по основанию 16
+(0…9, A…F). 35₁₆ = 53, D0₁₆ = 208, BA₁₆ = 186.</li>
+<li><b>Альфа</b> — непрозрачность 0…255: 0 — невидимый, 255 — сплошной. <span class="mono">THEME.color("surface", 235)</span> — цвет
+карточки, чуть прозрачный.</li>
+<li><b>HSL</b> — другой способ: оттенок (hue, «какой цвет радуги»), насыщенность (saturation, «насколько не серый»), светлота
+(lightness). Удобен, когда нужно сделать тот же оттенок светлее или темнее.</li>
+<li><span class="mono">QColor</span> — объект цвета Qt; понимает все эти записи: <span class="mono">QColor("#35D0BA")</span>,
+<span class="mono">QColor.fromRgbF(r, g, b)</span> (доли 0…1), <span class="mono">QColor.fromHslF(h, s, l)</span>; <span class="mono">.name()</span> —
+обратно в «#rrggbb».</li>
+<li><b>Premultiplied</b> («предумноженный»): каналы цвета заранее умножены на альфу. Полупрозрачный белый хранится как
+(128, 128, 128, 128), а не (255, 255, 255, 128). Так Qt накладывает картинки быстрее: не надо умножать при каждом
+рисовании.</li>
+</ul>
+
+<h2>7.2. Две темы</h2>
+<p>Все цвета собраны в словари <span class="mono">DARK</span> и <span class="mono">LIGHT</span> в <span class="mono">theme.py</span> с одинаковыми
+ключами: <span class="mono">bg</span> (фон окна), <span class="mono">surface</span> (карточки), <span class="mono">raised</span> (поля), <span class="mono">text</span>,
+<span class="mono">muted</span> (второстепенный текст), <span class="mono">accent</span> (бирюзовый) и т. д. Тройки <span class="mono">ok/bad/warn/info</span>
+— фон, текст и рамка цветных подложек. Смена темы (<span class="mono">toggle_theme</span>):</p>
+<ol>
+<li><span class="mono">THEME.set("light")</span> — подменить словарь;</li>
+<li><span class="mono">apply_theme</span>: новая палитра Qt, новая таблица стилей, перекрасить радужный ползунок и значки примеров,
+заново «отполировать» подложки;</li>
+<li><span class="mono">recalc()</span> — перерисовать графики: цвета кривых зависят от фона.</li>
+</ol>
+
+<h2>7.3. Таблица стилей (QSS)</h2>
+<div class="plain"><p>QSS — язык оформления виджетов, почти как CSS веб-страниц. Правило состоит из <b>селектора</b>
+(к каким виджетам применить) и списка <b>свойств</b> в фигурных скобках.</p></div>
+<pre class="ex">QLabel#tileValue { font-size: 21px; font-weight: 700; }
+QLabel#badge[kind="ok"] { background: #0F2E29; color: #5EE3C9; }
+QComboBox:focus { border-color: #35D0BA; }
+QSlider::groove:horizontal { height: 6px; border-radius: 3px; background: qlineargradient(...); }</pre>
+<table class="g wide">
+<tr><th>Часть селектора</th><th>Значит</th></tr>
+<tr><td class="mono">QLabel</td><td>все виджеты этого класса (и его наследников)</td></tr>
+<tr><td class="mono">#tileValue</td><td>только с этим именем (<span class="mono">setObjectName("tileValue")</span>)</td></tr>
+<tr><td class="mono">[kind="ok"]</td><td>только если у виджета свойство kind равно "ok" (<span class="mono">setProperty</span>)</td></tr>
+<tr><td class="mono">:focus, :hover, :checked, :disabled</td><td>состояние: в фокусе, под мышью, нажата, выключена</td></tr>
+<tr><td class="mono">::groove, ::handle, ::sub-page</td><td>часть сложного виджета: дорожка ползунка, ручка, заполненная часть</td></tr>
+<tr><td>A, B</td><td>правило для A и для B</td></tr>
+</table>
+<p>Свойства: <span class="mono">background</span>, <span class="mono">color</span> (цвет текста), <span class="mono">border</span> (толщина, стиль, цвет),
+<span class="mono">border-radius</span> (скругление), <span class="mono">padding</span> (внутренний отступ), <span class="mono">margin</span> (внешний),
+<span class="mono">font-size</span>, <span class="mono">font-weight</span> (700 — жирный), <span class="mono">min-height</span> и т. п.
+<span class="mono">qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 цвет, stop:1 цвет)</span> — плавный переход цветов слева направо.</p>
+<p>Таблица стилей собирается f-строкой с цветами текущей темы. Фигурные скобки самого QSS в f-строке удваиваются
+(<span class="mono">{{</span> и <span class="mono">}}</span>), иначе Python принял бы их за вставку значения.</p>
+<h3>Смена вида на лету: <span class="mono">polish</span></h3>
+<code ref="widgets.polish" nodoc/>
+<p>Qt применяет стиль, когда виджет создаётся. Если потом поменять свойство <span class="mono">kind</span>, Qt сам этого не заметит.
+<span class="mono">unpolish/polish</span> заставляет пересчитать стиль. Так подложка вывода становится зелёной или красной. Чтобы не
+делать это лишний раз, программа сначала проверяет, изменился ли <span class="mono">kind</span>.</p>
+<h3>Палитра</h3>
+<p><span class="mono">qt_palette()</span> — цвета для стандартных окон, которые таблица стилей не покрывает: «Сохранить как…»,
+сообщения, подсказки. <span class="mono">QPalette.ColorRole</span> — роли: Window (фон), Text, Highlight (выделение) и т. д.</p>
+
+<h2>7.4. Цвет длины волны</h2>
+<code ref="theme.wavelength_rgb" nodoc/>
+<p>Точного перевода «длина волны → RGB» не бывает: монитор не может показать чистые спектральные цвета. Схема
+Брутона — простое кусочно-линейное приближение: по отрезкам спектра один канал растёт или падает линейно. У краёв
+спектра (глаз там видит хуже) цвет притемняется множителем k.</p>
+<p><span class="mono">line_color</span> делает из этого цвет кривой, читаемый на фоне темы: переводит в HSL, на тёмном фоне поднимает
+светлоту не ниже 0,62 (фиолетовый иначе не виден на чёрном), на светлом — опускает (жёлтый на белом особенно, поэтому
+<span class="mono">yellowish</span> — «насколько оттенок близок к жёлтому»). <span class="mono">spectrum_gradient</span> собирает 21 точку
+радуги в градиент для дорожки ползунка λ.</p>
+
+<h2>7.5. QPainter — художник</h2>
+<p>Всё своё рисование делается объектом <span class="mono">QPainter</span>: «художник» рисует на «холсте» — виджете, картинке
+<span class="mono">QImage</span> или <span class="mono">QPixmap</span>.</p>
+<pre class="ex">p = QPainter(self)                                  # рисовать на этом виджете
+p.setRenderHint(QPainter.RenderHint.Antialiasing)   # сглаживание краёв
+p.setPen(QPen(QColor("#FFA54A"), 1.6))              # перо: цвет и толщина линий и текста
+p.setBrush(QColor("#111923"))                       # кисть: чем заливать фигуры
+p.drawLine(QPointF(0, 0), QPointF(100, 50))
+p.drawRoundedRect(QRectF(10, 10, 200, 100), 14, 14) # прямоугольник со скруглением 14
+p.drawEllipse(QPointF(50, 50), 4.5, 4.5)            # круг: центр и два радиуса
+p.drawText(QRectF(...), Qt.AlignmentFlag.AlignCenter, "текст")
+p.drawImage(QPointF(x, y), image)
+p.end()                                             # закончить (для QImage обязательно)</pre>
+<ul>
+<li><b>Система координат</b>: начало в левом верхнем углу, x вправо, <b>y вниз</b>. Поэтому в <span class="mono">to_y</span> большее
+значение даёт меньший y: <span class="mono">area.bottom() − …</span>.</li>
+<li><span class="mono">QPointF, QRectF</span> — точка и прямоугольник с дробными координатами (F — float).
+<span class="mono">rect.adjusted(0.5, 0.5, −0.5, −0.5)</span> — прямоугольник, сжатый на полпикселя: линия толщиной 1 по
+центру пикселя получается чёткой.</li>
+<li><span class="mono">Qt.PenStyle.NoPen</span> — без контура; <span class="mono">Qt.BrushStyle.NoBrush</span> — без заливки;
+<span class="mono">pen.setStyle(Qt.PenStyle.DashLine)</span> — пунктир.</li>
+<li><span class="mono">p.fontMetrics().horizontalAdvance(текст)</span> — ширина текста в точках текущим шрифтом;
+<span class="mono">.height()</span> — высота строки. Нужны, чтобы подложка была по размеру надписи (<span class="mono">pill</span>).</li>
+<li><span class="mono">p.save() / p.translate(x, y) / p.rotate(−90) / p.restore()</span> — запомнить состояние, сдвинуть начало
+координат, повернуть, вернуть как было. Так пишется вертикальная подпись оси Y.</li>
+<li><span class="mono">pixel_font(widget, px, bold)</span> — шрифт заданного размера в точках экрана (а не в пунктах), чтобы
+графики выглядели одинаково на всех системах.</li>
+</ul>
+
+<h2>7.6. График: координаты, масштаб, кэш</h2>
+<ul>
+<li><span class="mono">area()</span> — поле графика внутри виджета: отступ 64 точки слева и сверху (подписи и заголовок), 22 справа,
+50 снизу.</li>
+<li><span class="mono">to_x(area, x)</span> — перевод значения в точку экрана: доля пути от x0 до x1, умноженная на ширину поля.
+<span class="mono">to_y</span> — то же по вертикали, перевёрнутое.</li>
+<li><b>Масштаб</b> хранится как <span class="mono">zoom = (a, b)</span> — доли всей ширины графика, от 0 до 1. <span class="mono">view()</span>
+переводит их в значения x. Колёсико (<span class="mono">wheelEvent</span>) умножает ширину видимой части на 0,8 за щелчок, и
+точка под курсором остаётся на месте: <span class="mono">center = a + at·(b − a)</span>, новое <span class="mono">a = center − at·span</span>.
+Перетаскивание сдвигает (a, b), не давая выйти за 0 и 1.</li>
+<li><b>Кэш.</b> Рисование сетки, подписей и кривых занимает несколько миллисекунд, а мышь двигается 60–120 раз в
+секунду. Поэтому готовый рисунок хранится в <span class="mono">QPixmap self.base</span>. <span class="mono">paintEvent</span>: если
+<span class="mono">base</span> нет — нарисовать его (<span class="mono">draw_base</span>); потом скопировать его на экран и сверху нарисовать
+только перекрестие (<span class="mono">draw_overlay</span>). При новых данных, масштабе или размере <span class="mono">base = None</span>.</li>
+</ul>
+<code ref="widgets.Plot.paintEvent" nodoc/>
+
+<h2>7.7. Растеризатор кривой</h2>
+<div class="plain"><p>Растеризация — превращение фигуры в пиксели. Вместо «нарисуй линию через тысячу точек» программа
+сама решает для каждого пикселя поля графика, насколько он закрашен — сразу для всех пикселей через numpy.</p></div>
+<code ref="widgets.Plot.draw_curve" nodoc/>
+<ol>
+<li>Для каждого из <span class="mono">width</span> столбцов пикселей <span class="mono">curve.span</span> даёт наименьшее и наибольшее
+значение кривой (часть 4.5). Переводим в строки пикселей: <span class="mono">top</span> и <span class="mono">bottom</span>.</li>
+<li><b>Линия.</b> Пиксель строки <span class="mono">row</span> занимает по вертикали [row, row + 1]. Полоска кривой — [top − half,
+bottom + half], half ≈ 0,95 пикселя (толщина ~1,9). Доля пикселя внутри полоски — длина пересечения двух отрезков:
+<span class="mono">min(row + 1, bottom + half) − max(row, top − half)</span>, обрезанная в [0, 1]. Пиксель, закрытый наполовину,
+получает прозрачность 0,5 — край линии гладкий (<b>сглаживание</b>).</li>
+</ol>
+<fig name="raster"/>
+<ol start="3">
+<li><b>Заливка</b> под кривой: доля пикселя ниже верха кривой, умноженная на прозрачность, которая тает книзу
+(<span class="mono">fade</span> от 0,36 до 0,03).</li>
+<li><b>Свечение</b> (в тёмной теме): расстояние от пикселя до полоски, делённое на 3,2 пикселя; чем ближе, тем ярче;
+<span class="mono">glow *= glow</span> — квадрат делает спад мягче.</li>
+<li><b>Сложение слоёв</b>: как наложенные цветные плёнки. Плёнка с непрозрачностью a пропускает долю 1 − a; несколько
+плёнок пропускают произведение (1 − a)(1 − b)(1 − c). Итоговая непрозрачность 1 − это произведение. Так слои не дают
+«больше 100 %».</li>
+<li>Цвет у всей кривой один, поэтому пиксель — это только число 0…255 (прозрачность). Таблица
+<span class="mono">color_table(color)</span> из 256 готовых цветов «этот цвет с прозрачностью k» переводит всю картинку в цвета
+одной операцией <span class="mono">table[alpha]</span>.</li>
+<li>Массив чисел <span class="mono">uint32</span> превращается в картинку Qt: <span class="mono">QImage(байты, ширина, высота, байт_в_строке,
+формат)</span>. Байт в строке — 4 × ширина (по 4 байта на пиксель).</li>
+</ol>
+<p>Шум (реалистичный режим): верх и низ полоски в каждом столбце смещаются на случайную величину. Генератор создаётся
+с зерном <span class="mono">self.seed</span>, которое меняется только при пересчёте. Поэтому при движении мыши (перерисовке без
+пересчёта) шум не «кипит», а стоит на месте.</p>
+<code ref="widgets.color_table" nodoc/>
+<p><span class="mono">(alpha * k + 127) // 255</span> — умножение цвета на прозрачность с округлением (premultiplied, часть 7.1);
+<span class="mono">//</span> — деление нацело.</p>
+
+<h2>7.8. Картина колец</h2>
+<code ref="widgets.RingView.make_image" nodoc/>
+<ol>
+<li><b>Цвет зависит только от расстояния до центра</b>. Поэтому вместо полумиллиона вычислений для пикселей считается
+одна короткая таблица цветов по расстоянию с шагом ¼ пикселя (несколько тысяч значений), а затем каждый пиксель берёт
+цвет из неё.</li>
+<li><b>Карта номеров</b> <span class="mono">index</span> — для каждого пикселя номер строки таблицы (4 × расстояние / размер пикселя).
+Она зависит только от размера картинки и положения лупы, поэтому хранится (<span class="mono">self.index</span>, словарь с
+ключом (сторона, увеличение, центр)) и не пересчитывается, пока их не изменят.</li>
+<li><b>Яркость</b> для каждого расстояния — среднее функции Эйри по ширине пикселя через первообразную (часть 4.6):
+<span class="mono">airy_mean(p1 + blur, p2 − blur, …)</span>. Фаза убывает с радиусом, поэтому p1 &gt; p2, и
+отрезок от p1 + blur до p2 − blur — это окно пикселя, расширенное размытием на blur с каждой стороны (порядок концов
+среднему не важен).</li>
+<li><b>Свечение</b> — к яркости добавляется её размытая копия: свёртка (<span class="mono">np.convolve</span>) с <b>гауссовым ядром</b> —
+весами $e^{-x^2/2\sigma^2}$, нормированными на сумму 1. Каждая точка становится взвешенным средним соседей: так
+выглядит ореол на фотографии.</li>
+<li><b>Гамма</b>. Монитор показывает яркость не пропорционально числу: значение 128 из 255 выглядит не вдвое темнее
+255, а примерно в 4,6 раза (яркость ∝ значение^2,2). Чтобы физическая яркость 0,1 выглядела как 0,1, значение
+возводится в степень 1/2,2. Без этого тусклые кольца слились бы с чёрным фоном.</li>
+<li>Цвет каждой линии — <span class="mono">wavelength_rgb</span>; при двух линиях их вклады складываются.</li>
+<li><b>Край экрана</b>: прозрачность плавно спадает от 1 до 0 на последнем пикселе круга — край гладкий.</li>
+<li>Числа собираются в 32-битные цвета сдвигами, таблица «раскладывается» по картинке: <span class="mono">table[index]</span>.
+<span class="mono">.copy()</span> в конце — QImage, созданный из байтов, не владеет ими; копия делает свою память, иначе картинка
+испортилась бы, когда Python освободит временный массив.</li>
+</ol>
+<h3>Лупа</h3>
+<p><span class="mono">scale</span> — увеличение (1…40), <span class="mono">center</span> — какая точка экрана прибора (в метрах от центра колец)
+стоит в середине вида. Размер точки виджета в метрах <span class="mono">pixel = 2·half/(size·scale)</span>. При повороте колёсика
+точка под курсором остаётся на месте: <span class="mono">center_new = x − (x − center)·(scale_old/scale_new)</span>.</p>
+<h3>Оправа окуляра и подписи</h3>
+<p><span class="mono">decorate</span> один раз рисует прямо на картинке ободок и 72 деления через 5° (каждое шестое — длинное, через 30°).
+Координаты делений — через cos и sin угла. <span class="mono">paintEvent</span> поверх картинки рисует подпись, масштабную
+линейку «круглой» длины (через <span class="mono">ticks</span>) и пунктирную окружность под курсором со значениями r, m, I.</p>
+
+<h2>7.9. Свои мелкие виджеты</h2>
+<ul>
+<li><b>ToggleSwitch</b> — наследник <span class="mono">QCheckBox</span> (значит, у него есть <span class="mono">isChecked</span> и сигнал
+<span class="mono">toggled</span>), но <span class="mono">paintEvent</span> рисует «таблетку» 32 × 18 и белый кружок слева или справа.
+<span class="mono">sizeHint</span> — желаемый размер для компоновки; <span class="mono">hitButton</span> — щелчок по подписи тоже переключает.</li>
+<li><b>make_card</b> — <span class="mono">QFrame</span> с именем <span class="mono">card</span> (оформление из таблицы стилей) и вертикальной
+компоновкой, в которую кладётся содержимое.</li>
+<li><b>pill</b> — надпись на скруглённой подложке: считает ширину текста, рисует прямоугольник, пишет текст по центру.</li>
+<li><b>Значок программы</b> (<span class="mono">app_icon_image</span>): скруглённый квадрат с радиальным градиентом
+(<span class="mono">QRadialGradient</span> — цвет меняется от центра к краю) и 6 колец радиусом ∝ √k (как у настоящей картины) —
+каждое двумя окружностями: широкой полупрозрачной (ореол) и узкой яркой. <span class="mono">app_icon</span> собирает значок из 7
+размеров: для каждого рисуется вчетверо больший и плавно уменьшается — так мелкие значки не «рваные».
+<span class="mono">dot_icon</span> — кружки цветов линий у кнопок примеров.</li>
+</ul>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 8. Анимация, путь данных и скорость</h1>
+
+<h2>8.1. Кадры и время</h2>
+<p>Анимация — это быстрая смена кадров. 60 кадров в секунду — кадр каждые ≈ 16,7 мс. Есть два способа двигать
+картинку:</p>
+<ul>
+<li><b>по кадрам</b>: каждый кадр прибавлять фиксированный шаг. На медленном компьютере кадров меньше, и анимация
+идёт медленнее;</li>
+<li><b>по времени</b>: каждый кадр смотреть на секундомер и ставить значение, какое должно быть в этот момент. На
+медленном компьютере кадров меньше, но переход длится те же 0,85 с. Программа использует этот способ.</li>
+</ul>
+
+<h2>8.2. Плавный переход (tween)</h2>
+<p>Слово tween — от in-between, «промежуточные кадры». Переход описывается пятью числами: откуда, куда, когда начался,
+по логарифму ли, длительность. Они хранятся в <span class="mono">self.tweens[ключ]</span>.</p>
+<code ref="window.MainWindow.tween_step" nodoc/>
+<ol>
+<li>t = (сейчас − начало)/длительность — доля пройденного времени, от 0 до 1.</li>
+<li>e = ease(t) — доля пройденного пути (см. ниже).</li>
+<li>Значение: a + (b − a)·e. Для δλ, у которого логарифмическая шкала, путь проходится «по отношениям»:
+a·(b/a)^e. От 1 пм до 1000 пм на середине пути будет 31,6 пм, а не 500 — движение выглядит равномерным.</li>
+<li>Когда t дошло до 1, ставится точное конечное значение и переход удаляется. Нет переходов — таймер останавливается.</li>
+<li>В конце — <span class="mono">recalc()</span>: картинка по новым промежуточным значениям.</li>
+</ol>
+<p><span class="mono">list(self.tweens.items())</span> — копия, потому что внутри цикла из словаря удаляются элементы, а менять словарь,
+по которому идёт цикл, нельзя.</p>
+
+<h3>Кривая разгона и торможения</h3>
+<fig name="ease"/>
+<code ref="window.ease" nodoc/>
+<p>При равномерном движении (e = t) картинка резко трогается и резко встаёт — это выглядит механически. Кубическая
+кривая ease-in-out: первая половина — $4t^3$ (медленный старт, ускорение), вторая — зеркальная $1 - (2-2t)^3/2$
+(торможение). В точке t = 0,5 обе дают 0,5, и скорости совпадают — стык незаметен. Скорость в начале и в конце нулевая.</p>
+
+<h2>8.3. Откуда пришло значение: ползунок, ввод или стрелка</h2>
+<p>Задача: ползунок меняет картину сразу, введённое число — плавно (0,85 с), шаг стрелкой или колёсиком — коротким
+переходом (0,15 с), готовый пример — плавно. Всё это приходит одним сигналом <span class="mono">valueChanged</span> поля. Различаются
+флажками:</p>
+<ul>
+<li><span class="mono">from_slider</span> — ставит <span class="mono">slider_moved</span> на время установки значения в поле → «сразу».</li>
+<li><span class="mono">forced</span> — ставит программа в <span class="mono">set(value, smooth)</span> (примеры, восстановление) → как велено.</li>
+<li><span class="mono">spin.stepping</span> — ставит <span class="mono">StepSpin.stepBy</span> (стрелки и колёсико) → «быстро».</li>
+<li>ничего из этого → число ввели с клавиатуры → плавно.</li>
+</ul>
+<p><span class="mono">setKeyboardTracking(False)</span>: поле присылает значение только после Enter или ухода из поля, а не после каждой
+цифры. Иначе при вводе «12» картина поплыла бы сначала к 1, потом к 12.</p>
+
+<h2>8.4. Изменение параметра</h2>
+<code ref="window.MainWindow.param_changed" nodoc/>
+<ul>
+<li><span class="mono">self.shown</span> — значения, которые сейчас на картинке; <span class="mono">params[key].value()</span> — что в поле.
+Во время перехода они отличаются.</li>
+<li>Переход начинается <b>с того, что сейчас на картинке</b>. Если ввести новое число, пока идёт старый переход,
+картинка не прыгнет — новый переход подхватит движение с текущего места.</li>
+<li>Если параметр меняли руками (не пример), подсветка кнопки примера снимается.</li>
+</ul>
+
+<h2>8.5. Анимация зеркала</h2>
+<code ref="window.MainWindow.scan_step" nodoc/>
+<p>Каждые 30 мс Δd растёт на λ/(2n)/56: одно новое кольцо за 56 кадров ≈ 1,7 с. При переходе за
+<span class="mono">seamless_shift</span> значение начинается заново без скачка (часть 3.10). <span class="mono">display</span> показывает
+значение в поле и на ползунке, заглушив сигналы, — иначе поле сообщило бы об изменении и запустило бы ещё и переход.</p>
+
+<h2>8.6. Путь данных: от ползунка до картинки</h2>
+<fig name="pipeline"/>
+<p>Главная функция — <span class="mono">recalc</span>. По шагам:</p>
+<ol>
+<li><span class="mono">effective()</span> — значения для физики: видимые, а в лабораторной вместо λ и A — скрытые из варианта.</li>
+<li>Перевод в СИ: нм → м (<span class="mono">* 1e-9</span>), мм → м; d = d + Δd. Поглощение ограничивается: A ≤ 1 − R.</li>
+<li><span class="mono">theory(…)</span> — всё «по формуле». <span class="mono">realism</span> и <span class="mono">blur_halfwidth</span> — размытие и шум.</li>
+<li>График T(λ): десятки тысяч точек вокруг λ₁ (±1,5 Δλ), измерения <span class="mono">measure_curve</span>, затем
+<span class="mono">show_transmission</span> отдаёт графику кривую-формулу, метки λ₁, λ₂ и отрезки Δλ, w.</li>
+<li>Картина колец: <span class="mono">ring_view.show_data</span> — сама картинка посчитается при рисовании.</li>
+<li>Радиусы колец «по картинке» (<span class="mono">measure_rings</span>) и «по формуле» (<span class="mono">ring_radii</span>).</li>
+<li>Разрез колец: кривые-формулы для каждой линии (две линии делят свет пополам) и кривая суммы.</li>
+<li>Таблица и плитки (<span class="mono">fill_table</span>), вывод о разрешении (<span class="mono">verdict_text</span>).</li>
+</ol>
+<p>Виджеты при этом ничего не рисуют сразу: <span class="mono">show_data</span> только запоминает данные и вызывает
+<span class="mono">update()</span>. Рисование произойдёт, когда Qt вызовет <span class="mono">paintEvent</span>.</p>
+
+<h2>8.7. Почему быстро</h2>
+<table class="g wide">
+<tr><th>Приём</th><th>Что экономит</th></tr>
+<tr><td>Кривые — формулы, а не точки; рисование по столбцам через min/max на отрезке</td><td>время кадра не зависит от числа пиков: 1000 пиков рисуются так же быстро, как 3</td></tr>
+<tr><td>Растеризация numpy одной картинкой вместо тысяч вызовов drawLine</td><td>десятки миллисекунд на кадр</td></tr>
+<tr><td>Яркость пикселя колец через первообразную</td><td>одна формула вместо суммирования миллионов точек</td></tr>
+<tr><td>Таблица цветов по расстоянию + карта номеров пикселей</td><td>несколько тысяч вычислений вместо полумиллиона</td></tr>
+<tr><td>float32 при растеризации, операции «на месте»</td><td>память и время на копирование</td></tr>
+<tr><td>Кэш готового рисунка; мышь перерисовывает только курсор</td><td>движение мыши почти ничего не стоит</td></tr>
+<tr><td>Сливание сигналов за 15 мс в один пересчёт</td><td>ползунок не вызывает 100 пересчётов в секунду</td></tr>
+<tr><td>Высота строк таблицы пересчитывается, только когда картина стоит</td><td>Qt не перемеряет текст каждый кадр</td></tr>
+<tr><td>Анимация по времени, а не по кадрам</td><td>на слабом компьютере меньше кадров, но та же длительность</td></tr>
+</table>
+<p>Как измеряется скорость: засекается время до и после функции (<span class="mono">time.perf_counter()</span>) или запускается
+профилировщик <span class="mono">python -m cProfile -s cumtime run.py</span>, который показывает, в каких функциях программа
+провела больше всего времени. Так были найдены узкие места первой версии (до 350 мс на кадр).</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 9. Сохранение</h1>
+
+<h2>9.1. Снимок окна и картинка колец</h2>
+<ul>
+<li><span class="mono">QFileDialog.getSaveFileName(окно, заголовок, имя_по_умолчанию, фильтр)</span> — стандартное окно «Сохранить
+как». Возвращает пару (путь, выбранный фильтр); если нажали «Отмена», путь пустой, и <span class="mono">if path:</span> ничего не
+делает. <span class="mono">path, _ = …</span> — второе значение не нужно.</li>
+<li><span class="mono">self.centralWidget().grab()</span> — снимок всего содержимого окна в <span class="mono">QPixmap</span>;
+<span class="mono">.save(path, "PNG")</span> возвращает True или False.</li>
+<li><span class="mono">write_rings</span> создаёт картинку 2048 × 2048, заливает тёмным фоном и рисует на ней ту же
+<span class="mono">make_image</span>, что и на экране, только большего размера и без лупы. Формат PNG сжимает без потерь — кольца
+остаются чёткими.</li>
+</ul>
+
+<h2>9.2. CSV для Excel</h2>
+<p>CSV (comma-separated values) — таблица в виде текста: строки файла — строки таблицы, значения разделены
+разделителем. Русский Excel ожидает разделитель «;» (потому что запятая занята под десятичную дробь) и десятичную
+запятую. Поэтому <span class="mono">csv.writer(file, delimiter=";")</span>, числа через <span class="mono">fmt.plain</span> (запятая,
+6 значащих цифр) и кодировка <span class="mono">utf-8-sig</span> (часть 1.8). <span class="mono">writerow([])</span> — пустая строка между
+разделами. Точек графика может быть до 2 миллионов, поэтому пишется каждая <span class="mono">step</span>-я, не больше ≈ 20 000
+строк: <span class="mono">x[::step]</span> — срез с шагом.</p>
+<p>В лабораторной сохраняется только журнал и видимые параметры (<span class="mono">write_lab_csv</span>), иначе в файле оказалась бы
+скрытая длина волны.</p>
+
+<h2>9.3. Буфер обмена</h2>
+<p><span class="mono">QApplication.clipboard().setText(текст)</span>. Столбцы разделены табуляцией <span class="mono">\t</span>, строки —
+переводом строки <span class="mono">\n</span>. Excel и Word при вставке такого текста сами делают таблицу.</p>
+
+<h2>9.4. Что и где хранится между запусками</h2>
+<table class="g wide">
+<tr><th>Ключ в настройках</th><th>Что</th><th>Когда пишется</th></tr>
+<tr><td class="mono">theme, glow, second, realism</td><td>тема, свечение, вторая линия, реалистичный режим</td><td>при закрытии</td></tr>
+<tr><td class="mono">params/…</td><td>значения всех параметров</td><td>при закрытии</td></tr>
+<tr><td class="mono">geometry</td><td>размер и положение окна</td><td>при закрытии</td></tr>
+<tr><td class="mono">journal</td><td>весь журнал в JSON</td><td>после каждой записи</td></tr>
+<tr><td class="mono">lab/code, lab/name, lab/group, lab/doublet</td><td>незавершённая лабораторная</td><td>при начале и конце работы и при закрытии</td></tr>
+</table>
+<p><b>JSON</b> — текстовый формат данных, похожий на запись словарей и списков Python:
+<span class="mono">{"fsr": [{"x": 1.0, "y": 40.04, …}], …}</span>. <span class="mono">ensure_ascii=False</span> оставляет русские буквы как есть,
+а не в виде <span class="mono">р…</span>.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 10. Автоматические проверки</h1>
+
+<h2>10.1. Зачем тесты</h2>
+<div class="plain"><p>Тест — маленькая программа, которая запускает кусок основной программы и проверяет результат.
+После любого изменения достаточно одной команды, чтобы узнать, не сломалось ли что-то. Все 29 тестов проходят за
+несколько секунд; GitHub запускает их перед каждой сборкой, и сломанная программа не соберётся.</p></div>
+
+<h2>10.2. pytest</h2>
+<p><b>pytest</b> — библиотека для тестов. Она находит в папке <span class="mono">tests</span> файлы <span class="mono">test_*.py</span>, в них —
+функции <span class="mono">test_*</span>, выполняет каждую и сообщает, какие упали.</p>
+<pre class="ex">python -m pytest tests             # все тесты
+python -m pytest tests -v          # с именем каждого теста
+python -m pytest tests -k rings    # только тесты, в имени которых есть «rings»
+python -m pytest tests -x          # остановиться на первой ошибке</pre>
+<ul>
+<li><b><span class="mono">assert условие</span></b> — команда Python: если условие ложно, возникает ошибка. pytest показывает, какие
+значения были слева и справа.</li>
+<li><b><span class="mono">pytest.approx</span></b> — сравнение дробных чисел с допуском: <span class="mono">got == pytest.approx(expect, rel=1e-3)</span> —
+отличие не больше 0,1 %.</li>
+<li><b><span class="mono">np.allclose(a, b, rtol, atol)</span></b> — то же для массивов numpy.</li>
+<li><b><span class="mono">@pytest.mark.parametrize("R", [0.3, 0.7, 0.9, 0.98])</span></b> — запустить тест четыре раза с разными R.</li>
+<li><b><span class="mono">pytest.importorskip("numpy")</span></b> — если библиотеки нет, тест пропускается, а не падает.</li>
+</ul>
+
+<h2>10.3. Фикстура: окно для тестов</h2>
+<pre class="ex">@pytest.fixture(scope="module")
+def window(tmp_path_factory):
+    home = tmp_path_factory.mktemp("settings")
+    QtCore.QSettings.setPath(QtCore.QSettings.Format.IniFormat,
+                             QtCore.QSettings.Scope.UserScope, str(home))
+    ...
+    win = MainWindow()
+    win.show()
+    yield win                 # тесты получают окно
+    win.close()               # после всех тестов модуля — закрыть</pre>
+<ul>
+<li><b>Фикстура</b> — функция, которая готовит то, что нужно тестам. Тест просит её, называя аргумент тем же именем:
+<span class="mono">def test_slider_is_instant(window)</span>.</li>
+<li><span class="mono">scope="module"</span> — окно создаётся один раз на весь файл, а не для каждого теста.</li>
+<li><span class="mono">yield</span> — «отдать значение и подождать»: код после него выполнится, когда тесты закончатся.</li>
+<li><span class="mono">tmp_path_factory.mktemp</span> — временная папка; <span class="mono">QSettings.setPath</span> направляет настройки туда. Тесты
+не видят и не портят настройки настоящей программы, и каждый запуск начинается с чистого листа.</li>
+<li>Переменная <span class="mono">QT_QPA_PLATFORM=offscreen</span> (ставится в начале файла через <span class="mono">os.environ.setdefault</span>)
+— Qt рисует окна в памяти. Так тесты идут на сервере без монитора.</li>
+</ul>
+<pre class="ex">def wait(ms):
+    loop = QtCore.QEventLoop()
+    QtCore.QTimer.singleShot(ms, loop.quit)
+    loop.exec()</pre>
+<p>Как подождать, чтобы при этом работали таймеры окна (плавный переход)? <span class="mono">time.sleep</span> не подходит: он
+остановил бы всё. Функция запускает маленький цикл событий и выходит из него через ms миллисекунд — за это время
+таймеры окна успевают сработать.</p>
+
+<h2>10.4. Что проверяется</h2>
+<table class="g wide">
+<tr><th>Файл</th><th>Проверки</th></tr>
+<tr><td class="mono">test_physics.py</td><td>формула Эйри совпадает с прямым сложением 800 лучей; измерения по графику совпадают с формулами при разных R; поглощение;
+нет света при R + A = 1; радиусы колец; сдвиг без скачка; первообразная совпадает с плотным усреднением; min/max на отрезках
+правильные; кольца «по картинке» совпадают с формулой; 22 000 тонких колец не теряются</td></tr>
+<tr><td class="mono">test_lab.py</td><td>варианты одинаковы при повторном создании и различны между собой; МНК совпадает с <span class="mono">numpy.polyfit</span>;
+по идеальным сериям находится верная λ; реализм не сдвигает пики; предел по провалу ≈ w; среднее с погрешностью</td></tr>
+<tr><td class="mono">test_app.py</td><td>окно запускается; введённое число плавно переходит (на полпути значение промежуточное); ползунок меняет сразу;
+примеры и тема; анимация; сохранение PNG и CSV; короткий переход стрелкой; лабораторная скрывает λ и пишет в журнал;
+реализм снижает пики; лупа и кривая суммы</td></tr>
+</table>
+<p>Каждый тест устроен одинаково: подготовить → выполнить → сравнить с тем, что должно быть. Например, «введённое число
+плавно переходит»: поставить в поле d = 10, сразу проверить, что картинка ещё старая, через 350 мс — что значение между
+старым и 10, через ещё 900 мс — что ровно 10.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 11. Упаковка: из кода — программа</h1>
+<p class="partsub">Как получаются файлы, которые запускаются двойным щелчком без установленного Python</p>
+
+<h2>11.1. Задача</h2>
+<p>Чтобы запустить <span class="mono">run.py</span>, нужны Python нужной версии, numpy, PyQt и сама библиотека Qt (десятки мегабайт
+файлов на C++). У студента на компьютере в аудитории этого нет. <b>Упаковка</b> — сложить всё это в один файл или одну
+папку, которая запускается сама.</p>
+
+<h2>11.2. PyInstaller</h2>
+<div class="plain"><p>PyInstaller читает <span class="mono">run.py</span>, находит все импорты (и импорты импортов), копирует
+сам Python, все нужные модули и библиотеки в одно место и добавляет маленькую программу-«загрузчик» (bootloader),
+которая при запуске поднимает этот встроенный Python и выполняет <span class="mono">run.py</span>.</p></div>
+<p>Два режима:</p>
+<table class="g wide">
+<tr><th></th><th>Один файл (<span class="mono">--onefile</span>)</th><th>Папка (по умолчанию; наш portable)</th></tr>
+<tr><td>Что получается</td><td>один <span class="mono">FabryPerot.exe</span> ≈ 40 МБ</td><td>папка <span class="mono">FabryPerot/</span>: exe и сотни файлов рядом</td></tr>
+<tr><td>Как запускается</td><td>при <b>каждом</b> запуске распаковывает всё содержимое во временную папку (<span class="mono">%TEMP%\_MEIxxxxx</span>), запускает оттуда, при выходе удаляет</td><td>запускается сразу: всё уже лежит рядом</td></tr>
+<tr><td>Старт</td><td>1–3 с на SSD, 5–10 с на старом жёстком диске</td><td>≈ 1 с</td></tr>
+<tr><td>Скорость работы</td><td colspan="2">одинаковая: после запуска работает один и тот же код</td></tr>
+<tr><td>Удобство</td><td>один файл легко переслать</td><td>нужно распаковать zip, не разбрасывать файлы</td></tr>
+</table>
+<p>Слово <b>portable</b> («переносная») значит: программа не требует установки, её можно положить на флешку и запустить где
+угодно; она ничего не пишет в систему (кроме файла настроек).</p>
+
+<h3>Ключи PyInstaller из нашей сборки</h3>
+<table class="g wide">
+<tr><th>Ключ</th><th>Значение</th></tr>
+<tr><td class="mono">--noconfirm</td><td>не спрашивать, можно ли стереть прошлую сборку</td></tr>
+<tr><td class="mono">--onefile</td><td>один файл (без него — папка)</td></tr>
+<tr><td class="mono">--windowed</td><td>программа с окном: на Windows не открывать чёрное окно консоли, на macOS собрать <span class="mono">.app</span></td></tr>
+<tr><td class="mono">--name FabryPerot</td><td>имя exe и папки</td></tr>
+<tr><td class="mono">--icon assets/icon.ico</td><td>значок файла (на macOS — <span class="mono">.icns</span>)</td></tr>
+<tr><td class="mono">--version-file …</td><td>сведения «Свойства → Подробно» у exe (Windows)</td></tr>
+<tr><td class="mono">--add-binary "папка\*.dll;."</td><td>положить внутрь дополнительные библиотеки; после «;» — куда внутри (точка — в корень)</td></tr>
+<tr><td class="mono">--exclude-module tkinter</td><td>не класть модуль, даже если он найдётся (tkinter и вторая версия PyQt не нужны, а весят много)</td></tr>
+<tr><td class="mono">--distpath, --workpath</td><td>куда класть результат и промежуточные файлы (чтобы две сборки не мешали друг другу)</td></tr>
+<tr><td class="mono">--osx-bundle-identifier</td><td>уникальное имя приложения для macOS (<span class="mono">ru.bmstu.self.fabryperot</span>)</td></tr>
+</table>
+<p>Собирать под систему можно только <b>на этой же системе</b>: exe для Windows — на Windows, <span class="mono">.app</span> — на Mac.
+Поэтому сборку делают три разных компьютера GitHub (часть 12).</p>
+
+<h2>11.3. Windows 7–11</h2>
+<h3>Почему именно такие версии</h3>
+<table class="g wide">
+<tr><th>Что</th><th>Версия</th><th>Почему</th></tr>
+<tr><td>Python</td><td>3.8</td><td>последняя версия Python, которая запускается на Windows 7 (3.9 и новее — только Windows 8.1+)</td></tr>
+<tr><td>Разрядность</td><td>32 бита (x86)</td><td>32-битная программа запускается и на 32-, и на 64-битной Windows (64-битная Windows запускает 32-битные программы через встроенную подсистему WOW64). 64-битная программа на 32-битной Windows не запустится. Программе не нужно больше 2 ГБ памяти, так что 32 бит достаточно</td></tr>
+<tr><td>PyQt5 / Qt</td><td>5.15</td><td>Qt 6 требует Windows 10; Qt 5.15 — последняя версия с Windows 7</td></tr>
+<tr><td>numpy</td><td>1.24.4</td><td>последняя версия для Python 3.8</td></tr>
+<tr><td>PyInstaller</td><td>5.13.2</td><td>версия, у которой загрузчик и набор функций рассчитаны на Python 3.8 и Windows 7</td></tr>
+</table>
+<p>Зависимости, которые ставятся на сборочном компьютере, перечислены в <span class="mono">requirements/win7.txt</span> со знаком
+<span class="mono">==</span> — ровно эта версия. Это называется «закрепить версии»: завтра выйдет новая версия библиотеки, и
+сборка от этого не сломается.</p>
+
+<h3>UCRT</h3>
+<p>Python 3.8 написан на C и использует стандартную библиотеку C от Microsoft — <b>Universal C Runtime</b> (файлы
+<span class="mono">ucrtbase.dll</span> и <span class="mono">api-ms-win-crt-*.dll</span>). В Windows 10 и 11 она встроена. В Windows 7 её
+приносит обновление KB2999226, которое на компьютерах в аудиториях часто не установлено. Сборка находит эти файлы в
+Windows SDK на сборочном компьютере (папка <span class="mono">Windows Kits\10\Redist\…\ucrt\DLLs\x86</span>) и кладёт внутрь exe
+ключом <span class="mono">--add-binary</span>. Кусок сборки на PowerShell:</p>
+<pre class="ex">$ucrt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\Redist" -Recurse -Directory |
+        Where-Object { $_.FullName -match 'ucrt\\DLLs\\x86$' } | Select-Object -First 1</pre>
+<ul>
+<li>PowerShell — командная оболочка Windows. Переменные начинаются с <span class="mono">&#36;</span>.</li>
+<li><span class="mono">Get-ChildItem … -Recurse -Directory</span> — все папки внутри, на любой глубине.</li>
+<li><span class="mono">|</span> — «передать результат следующей команде» (конвейер).</li>
+<li><span class="mono">Where-Object { … -match '…' }</span> — оставить те, чей путь подходит под регулярное выражение
+(<span class="mono">\\</span> — обратная косая, <span class="mono">&#36;</span> — конец строки).</li>
+<li><span class="mono">Select-Object -First 1</span> — первую найденную.</li>
+<li><span class="mono">@('a', 'b')</span> — список; <span class="mono">pyinstaller @common</span> — подставить все элементы списка как аргументы.</li>
+</ul>
+
+<h3>Сведения о версии</h3>
+<p><span class="mono">packaging/windows/version.txt</span> — описание в формате PyInstaller (это код Python, который PyInstaller
+выполняет): версия 2.0.0, название, организация. <span class="mono">041904B0</span> и <span class="mono">[0x0419, 1200]</span> — код языка
+(0x0419 — русский) и кодовой страницы (1200 = Unicode). Эти сведения видны в «Свойствах» файла и в диспетчере задач.</p>
+
+<h3>SmartScreen</h3>
+<p>Windows предупреждает о программах без цифровой подписи от известного издателя. Подпись стоит денег (сертификат
+разработчика), поэтому её нет. «Подробнее → Выполнить в любом случае» — обычный путь для учебных программ.</p>
+
+<h2>11.4. macOS</h2>
+<h3>Что такое .app</h3>
+<p>Программа на Mac — это папка с окончанием <span class="mono">.app</span>, которую Finder показывает как один значок:</p>
+<pre class="ex">Fabry-Perot.app/
+  Contents/
+    Info.plist          сведения о программе: имя, версия, значок, минимальная версия macOS
+    MacOS/Fabry-Perot   сама программа (загрузчик PyInstaller)
+    Resources/          значок .icns
+    Frameworks/         Python, Qt, numpy</pre>
+<p><span class="mono">Info.plist</span> — файл в формате XML со списком «ключ — значение». <span class="mono">PlistBuddy</span> — встроенная в macOS
+программа для его правки: <span class="mono">Add :CFBundleDisplayName string 'Фабри — Перо'</span> добавляет русское имя,
+<span class="mono">Set :CFBundleShortVersionString 2.0.0</span> — версию, <span class="mono">LSMinimumSystemVersion 11.0</span> — «не ниже
+macOS 11». <span class="mono">|| true</span> в конце команды оболочки — «если команда не удалась (ключ уже есть), не считать это
+ошибкой».</p>
+
+<h3>Две сборки: Apple Silicon и Intel</h3>
+<p>Маки бывают на процессорах Apple (M1–M4, архитектура arm64) и на Intel (x86_64). Это разные системы команд
+процессора, поэтому программа собирается дважды на двух разных сборочных компьютерах: <span class="mono">macos-14</span>
+(Apple Silicon) и <span class="mono">macos-15-intel</span>. Переменная <span class="mono">MACOSX_DEPLOYMENT_TARGET=11.0</span> говорит
+компилятору «делай совместимо с macOS 11». numpy закреплён на 1.26.4: его готовые сборки работают с macOS 11, а у более
+новых — только с macOS 14.</p>
+
+<h3>Подпись и Gatekeeper</h3>
+<p>На Apple Silicon программа обязана быть подписана, хотя бы «ad-hoc» (без сертификата разработчика):
+<span class="mono">codesign --force --deep --sign - Fabry-Perot.app</span>. Дефис вместо имени сертификата — и есть ad-hoc;
+<span class="mono">--deep</span> — подписать и все библиотеки внутри. <b>Gatekeeper</b> (защита macOS) всё равно предупредит о
+программе из интернета от неизвестного разработчика: поэтому первый запуск — правый щелчок → «Открыть». Если macOS
+пишет «повреждена», команда <span class="mono">xattr -cr Fabry-Perot.app</span> снимает с файлов метку «скачано из интернета»
+(расширенный атрибут <span class="mono">com.apple.quarantine</span>).</p>
+
+<h3>Образ .dmg</h3>
+<pre class="ex">mkdir dmg
+cp -R "dist/Fabry-Perot.app" dmg/
+ln -s /Applications dmg/Applications          # ярлык на «Программы», чтобы перетащить
+hdiutil create -volname "Fabry-Perot" -srcfolder dmg -ov -format UDZO FabryPerot-macOS-Intel.dmg</pre>
+<p>DMG — файл образа диска. При открытии он появляется как диск, внутри — программа и ярлык на «Программы».
+<span class="mono">ln -s</span> создаёт символическую ссылку (ярлык). <span class="mono">hdiutil</span> — встроенная программа для образов;
+<span class="mono">UDZO</span> — сжатый образ только для чтения; <span class="mono">-ov</span> — перезаписать, если есть.</p>
+
+<h2>11.5. Linux</h2>
+<ul>
+<li><b>glibc.</b> Почти все программы Linux используют системную библиотеку C (glibc). Программа, собранная на системе
+с новой glibc, не запустится на старой, а наоборот — запустится. Поэтому сборка делается на Ubuntu 22.04 (glibc 2.35):
+она работает на Ubuntu 22.04 и новее, Debian 12, Fedora 36+.</li>
+<li><b>xcb.</b> Окна в Linux рисует графический сервер X11 (или Wayland с совместимостью с X11). Qt общается с ним
+через библиотеки <span class="mono">libxcb-*</span>. На сборочном компьютере они ставятся через
+<span class="mono">sudo apt-get install</span> (<span class="mono">apt</span> — установщик пакетов Ubuntu, <span class="mono">sudo</span> — от имени
+администратора), и PyInstaller кладёт их внутрь файла — на компьютере пользователя их может не быть.</li>
+<li><b>Ярлык в меню</b> — файл <span class="mono">.desktop</span>: название (в том числе по-русски, <span class="mono">Name[ru]</span>), команда
+запуска <span class="mono">Exec</span>, значок <span class="mono">Icon</span>, категория меню.</li>
+</ul>
+<h3><span class="mono">install.sh</span> построчно</h3>
+<pre class="ex">#!/bin/sh                                    # «выполнять этот файл программой /bin/sh»
+set -e                                       # остановиться на первой ошибке
+HERE="$(cd "$(dirname "$0")" &amp;&amp; pwd)"         # папка, где лежит сам скрипт
+BIN="$HOME/.local/bin"                       # личные папки пользователя — sudo не нужен
+APPS="$HOME/.local/share/applications"       # сюда кладутся ярлыки меню
+ICONS="$HOME/.local/share/icons/hicolor/256x256/apps"
+if [ "$1" = "--remove" ]; then ... fi        # ./install.sh --remove — удалить
+mkdir -p "$BIN" "$APPS" "$ICONS"             # создать папки (-p — вместе с родительскими, без ошибки, если есть)
+cp "$HERE/FabryPerot" "$BIN/FabryPerot"      # скопировать программу
+chmod +x "$BIN/FabryPerot"                   # разрешить запуск (x — execute)
+sed "s|^Exec=.*|Exec=$BIN/FabryPerot|" … &gt; … # подставить в ярлык полный путь к программе
+update-desktop-database "$APPS" 2&gt;/dev/null || true   # обновить меню; ошибки не показывать</pre>
+<p><span class="mono">&#36;0</span> — путь к самому скрипту, <span class="mono">&#36;1</span> — первый аргумент, <span class="mono">&#36;HOME</span> — домашняя папка.
+<span class="mono">sed "s|что|на что|"</span> — замена по регулярному выражению: <span class="mono">^Exec=.*</span> — строка, начинающаяся с
+<span class="mono">Exec=</span>. <span class="mono">&gt;</span> — записать вывод в файл, <span class="mono">2&gt;/dev/null</span> — выбросить сообщения об
+ошибках. <span class="mono">tar -czf архив.tar.gz папка</span> — упаковать папку в сжатый архив (c — создать, z — сжать gzip,
+f — в файл).</p>
+
+<h2>11.6. Самопроверка <span class="mono">--selftest</span></h2>
+<code ref="app.main"/>
+<p>Собранная программа запускается с ключом <span class="mono">--selftest</span>: открывает окно, через 1,5 с делает расчёт, печатает
+«selftest ok» и выходит с <b>кодом завершения</b> 0 (успех) или 1 (ошибка). Код завершения — число, которое программа
+возвращает системе; сборка проверяет его. Так ловятся ошибки, которых нет при запуске из исходников: забытая
+библиотека, не найденный модуль Qt. Ключ убирается из списка аргументов, прежде чем передать его Qt.</p>
+<pre class="ex">$p = Start-Process $exe -ArgumentList '--selftest' -Wait -PassThru
+if ($p.ExitCode -ne 0) { throw "selftest failed" }</pre>
+<p>На Windows программа с окном (<span class="mono">--windowed</span>) не ждёт завершения в консоли, поэтому её запускают через
+<span class="mono">Start-Process -Wait -PassThru</span>: дождаться и вернуть объект процесса с кодом завершения;
+<span class="mono">-ne</span> — «не равно»; <span class="mono">throw</span> — ошибка, которая остановит сборку.</p>
+
+<h2>11.7. Значки</h2>
+<p><span class="mono">tools/make_icon.py</span> рисует значок той же функцией <span class="mono">app_icon_image</span>, что и окно, в картинку
+1024 × 1024 и сохраняет через библиотеку <b>Pillow</b> (работа с картинками) в три формата: PNG (Linux), ICO — несколько
+размеров от 16 до 256 в одном файле (Windows выбирает нужный), ICNS — то же для macOS. Значки лежат в
+<span class="mono">assets/</span> готовыми, перерисовывать их нужно только при изменении рисунка.</p>
+
+<h2>11.8. Файлы requirements</h2>
+<table class="g wide">
+<tr><th>Файл</th><th>Для чего</th></tr>
+<tr><td class="mono">requirements.txt</td><td>запуск из исходников: <span class="mono">numpy&gt;=1.19</span>, <span class="mono">PyQt6&gt;=6.4</span> (любая версия не ниже)</td></tr>
+<tr><td class="mono">requirements/win7.txt</td><td>сборка для Windows: закреплённые PyQt5 и numpy</td></tr>
+<tr><td class="mono">requirements/modern.txt</td><td>сборка для macOS и Linux: закреплённые PyQt6 и numpy</td></tr>
+<tr><td class="mono">requirements/build.txt</td><td>pytest и Pillow</td></tr>
+<tr><td class="mono">requirements/docs.txt</td><td>сборка методичек</td></tr>
+</table>
+<p>PyQt6 состоит из двух пакетов: <span class="mono">PyQt6</span> (переходник) и <span class="mono">PyQt6-Qt6</span> (сама библиотека Qt).
+Их версии закреплены отдельно. Строки с <span class="mono">#</span> — комментарии.</p>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 12. git и GitHub Actions</h1>
+
+<h2>12.1. git</h2>
+<div class="plain"><p>git — программа, которая хранит всю историю изменений кода. Каждое сохранённое состояние
+называется <b>коммит</b>: «снимок» всех файлов с описанием и автором. Можно посмотреть любой прошлый снимок, сравнить,
+откатиться.</p></div>
+<table class="g wide">
+<tr><th>Понятие</th><th>Что это</th></tr>
+<tr><td>репозиторий</td><td>папка проекта вместе со скрытой папкой <span class="mono">.git</span>, где хранится история</td></tr>
+<tr><td>коммит</td><td>снимок с описанием; у каждого уникальный номер (хэш), например <span class="mono">72bf077</span></td></tr>
+<tr><td>ветка</td><td>отдельная линия развития: изменения в ней не мешают основной ветке (<span class="mono">main</span>), пока их не слили</td></tr>
+<tr><td>remote, origin</td><td>копия репозитория на сервере (GitHub); <span class="mono">origin</span> — её имя по умолчанию</td></tr>
+<tr><td>push / pull</td><td>отправить свои коммиты на сервер / забрать чужие</td></tr>
+<tr><td>тег</td><td>постоянная метка на коммите, например <span class="mono">v2.0.0</span></td></tr>
+<tr><td>pull request</td><td>на GitHub — предложение слить ветку в основную, с обсуждением и проверками</td></tr>
+</table>
+<pre class="ex">git status                        # что изменено
+git diff                          # сами изменения построчно
+git add fabry_perot/window.py     # отметить файл для следующего коммита
+git commit -m "Описание"          # сделать коммит
+git push -u origin имя-ветки      # отправить ветку на GitHub
+git log --oneline                 # история
+git tag v2.0.0 &amp;&amp; git push origin v2.0.0   # выпустить версию</pre>
+<p><span class="mono">.gitignore</span> — список файлов, которые git не хранит (временные, собранные, <span class="mono">__pycache__</span> —
+папка, где Python кэширует скомпилированные модули).</p>
+
+<h2>12.2. GitHub Actions</h2>
+<p>GitHub бесплатно даёт на время виртуальные компьютеры с Windows, macOS и Linux. <b>GitHub Actions</b> по инструкции из
+файла <span class="mono">.github/workflows/build.yml</span> при каждом <span class="mono">push</span> берёт такие компьютеры, скачивает код,
+ставит библиотеки, запускает тесты и собирает программы. Результаты (<b>артефакты</b>) можно скачать со страницы
+запуска.</p>
+<h3>YAML</h3>
+<p>Файл написан на языке <b>YAML</b> — это способ записать словари и списки текстом:</p>
+<pre class="ex">ключ: значение               # словарь: ключ → значение
+вложенный:                   # вложенность — отступом (пробелы, не табуляция!)
+  внутренний: 1
+список:
+  - первый                   # элемент списка — с дефиса
+  - второй
+многострочный: |             # «|» — следующий блок текста как есть, со всеми строками
+  команда 1
+  команда 2</pre>
+
+<h3>Разбор build.yml</h3>
+<table class="g wide">
+<tr><th>Запись</th><th>Смысл</th></tr>
+<tr><td class="mono">name: Build</td><td>имя, которое видно во вкладке Actions</td></tr>
+<tr><td class="mono">on: push: branches: ["**"], tags: ["v*"]</td><td>когда запускать: при push в любую ветку и при теге, начинающемся с v; <span class="mono">workflow_dispatch</span> — ещё и кнопкой вручную</td></tr>
+<tr><td class="mono">permissions: contents: read</td><td>права: только читать код (безопасность); задание release просит <span class="mono">write</span>, чтобы выложить файлы</td></tr>
+<tr><td class="mono">env:</td><td>переменные окружения для всех шагов (<span class="mono">PYTHONIOENCODING: utf-8</span> — чтобы русские сообщения печатались на Windows)</td></tr>
+<tr><td class="mono">jobs:</td><td>задания: test, windows, macos, linux, release. Каждое идёт на своём чистом компьютере</td></tr>
+<tr><td class="mono">runs-on: windows-2022</td><td>на каком компьютере</td></tr>
+<tr><td class="mono">needs: test</td><td>начать только после успешного задания test</td></tr>
+<tr><td class="mono">strategy: matrix: include: [...]</td><td>запустить задание несколько раз с разными значениями (Python 3.8 + PyQt5 и 3.11 + PyQt6; два Мака)</td></tr>
+<tr><td class="mono">fail-fast: false</td><td>если один вариант матрицы упал, остальные доводить до конца</td></tr>
+<tr><td class="mono">&#36;{{ matrix.python }}</td><td>подстановка значения (выражение GitHub, вычисляется до запуска)</td></tr>
+<tr><td class="mono">steps:</td><td>шаги задания по порядку</td></tr>
+<tr><td class="mono">uses: actions/checkout@v4</td><td>готовое действие: скачать код репозитория (@v4 — версия действия)</td></tr>
+<tr><td class="mono">uses: actions/setup-python@v5, with: python-version, architecture: x86</td><td>поставить Python нужной версии и разрядности</td></tr>
+<tr><td class="mono">run: …</td><td>выполнить команды оболочки (bash на Linux и Mac, PowerShell с <span class="mono">shell: pwsh</span>)</td></tr>
+<tr><td class="mono">uses: actions/upload-artifact@v4</td><td>сохранить файл как артефакт запуска</td></tr>
+<tr><td class="mono">if: startsWith(github.ref, 'refs/tags/v')</td><td>выполнять задание только для тегов v*</td></tr>
+<tr><td class="mono">actions/download-artifact, merge-multiple</td><td>собрать артефакты всех заданий в одну папку</td></tr>
+<tr><td class="mono">softprops/action-gh-release@v2</td><td>действие стороннего автора: создать Release и приложить файлы; <span class="mono">generate_release_notes</span> — список изменений сам</td></tr>
+</table>
+<p>Порядок: сначала <b>test</b> (два варианта), потом параллельно <b>windows</b>, <b>macos</b> (два), <b>linux</b>, в каждом снова
+тесты на своей системе, сборка, самопроверка, упаковка, артефакт; для тегов в конце <b>release</b>.</p>
+
+<h3>Как скачать готовую программу</h3>
+<ol>
+<li>На странице репозитория — вкладка <b>Actions</b>.</li>
+<li>Слева <b>Build</b>, в списке — последний запуск с зелёной галочкой.</li>
+<li>Внизу страницы запуска — <b>Artifacts</b>: щелчок по имени скачивает zip (GitHub всегда заворачивает артефакт в zip; внутри
+— exe, dmg или tar.gz). Артефакты хранятся 90 дней, скачивать может только вошедший на GitHub пользователь.</li>
+<li>Для постоянной ссылки нужен выпуск: тег <span class="mono">v…</span> → файлы появляются в <b>Releases</b>, их может скачать кто угодно.</li>
+</ol>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 13. Как сделаны методички</h1>
+<p>Методички — не документы Word, а страницы HTML, которые программа <span class="mono">tools/build_docs.py</span> превращает в PDF.
+Это позволяет брать код, формулы, рисунки и снимки прямо из программы.</p>
+<ol>
+<li><b>Снимки окна</b>: <span class="mono">tools/docs_shots.py</span> запускает программу без экрана (offscreen), выставляет нужные
+параметры, делает <span class="mono">grab()</span> и сохраняет PNG. На снимок главного окна дорисовываются номера-выноски.</li>
+<li><b>Шаблоны</b> <span class="mono">docs/src/*.html</span> — обычный HTML (язык разметки веб-страниц: <span class="mono">&lt;h1&gt;</span> заголовок,
+<span class="mono">&lt;p&gt;</span> абзац, <span class="mono">&lt;table&gt;</span> таблица) плюс особые метки:
+<ul>
+<li><span class="mono">&lt;code ref="physics.airy"/&gt;</span> — модуль <b>ast</b> разбирает <span class="mono">physics.py</span> как дерево,
+находит функцию <span class="mono">airy</span>, берёт её строки из файла; <b>pygments</b> раскрашивает код;</li>
+<li><span class="mono">&lt;eq&gt;…&lt;/eq&gt;</span> и текст между знаками доллара — формулы в записи LaTeX (язык формул:
+<span class="mono">\frac{a}{b}</span> — дробь, <span class="mono">\sqrt{x}</span> — корень, <span class="mono">\lambda</span> — λ).
+<b>latex2mathml</b> переводит их в MathML — язык формул, который браузер рисует сам;</li>
+<li><span class="mono">&lt;fig name="…"/&gt;</span> — рисунок SVG из <span class="mono">tools/docs_figures.py</span>. SVG — векторная картинка,
+записанная текстом (линии, кривые, надписи), чёткая при любом увеличении. Графики на рисунках считаются функциями
+<span class="mono">physics.py</span>;</li>
+<li><span class="mono">&lt;py name="…"/&gt;</span> — таблица, посчитанная <span class="mono">tools/docs_tables.py</span> (ответы для 30 вариантов).</li>
+</ul></li>
+<li>Метки заменяются <b>регулярными выражениями</b> (<span class="mono">re.sub</span>): шаблон вроде
+<span class="mono">&lt;code\s[^&gt;]*/&gt;</span> находит все такие места, функция подставляет готовый HTML. Уже вставленные куски
+временно заменяются метками-заглушками, чтобы знак доллара в коде не приняли за формулу.</li>
+<li><b>PDF</b>: библиотека <b>Playwright</b> управляет браузером Chromium без окна: открывает страницу и печатает её в PDF
+формата A4 с полями и номерами страниц. Оформление (шрифты, отступы, как в методичках МГТУ) — в <span class="mono">style.css</span>
+(CSS — язык оформления веб-страниц).</li>
+</ol>
+<pre class="ex">pip install -r requirements/docs.txt
+python tools/build_docs.py              # всё
+python tools/build_docs.py guide        # только файлы, в имени которых есть «guide»
+python tools/build_docs.py --no-shots   # не переснимать окно</pre>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 14. Если что-то не работает</h1>
+<dl class="qa">
+<dt><span class="mono">ModuleNotFoundError: No module named 'PyQt6'</span> (или numpy)</dt>
+<dd>Библиотека не установлена в тот Python, которым запускаете. <span class="mono">python -m pip install -r requirements.txt</span>
+— именно через <span class="mono">python -m pip</span>, чтобы pip был того же Python.</dd>
+<dt>Windows 7: PyQt6 не ставится или программа из исходников не запускается</dt>
+<dd>Qt 6 не работает на Windows 7. Нужен Python 3.8 и <span class="mono">pip install -r requirements/win7.txt</span>. Или готовый exe.</dd>
+<dt>Windows 7: «api-ms-win-crt-runtime-l1-1-0.dll не найдена»</dt>
+<dd>Нет UCRT. В готовой сборке она внутри; если сборка сделана без неё — поставить обновление KB2999226.</dd>
+<dt>Одиночный exe долго стартует</dt>
+<dd>Он распаковывается при каждом запуске (часть 11.2). Используйте portable-версию.</dd>
+<dt>Антивирус ругается на exe</dt>
+<dd>Загрузчик PyInstaller иногда ложно принимают за вирус, потому что он распаковывает код во временную папку.
+Помогает portable-версия или добавление в исключения.</dd>
+<dt>macOS: «программа повреждена и не может быть открыта»</dt>
+<dd><span class="mono">xattr -cr "/Applications/Fabry-Perot.app"</span> в Терминале (часть 11.4).</dd>
+<dt>Linux: «could not load the Qt platform plugin "xcb"»</dt>
+<dd>Не хватает системной библиотеки. <span class="mono">sudo apt install libxcb-cursor0 libxkbcommon-x11-0</span>. Запуск с
+<span class="mono">QT_DEBUG_PLUGINS=1 ./FabryPerot</span> покажет, какой именно.</dd>
+<dt>Всё мелкое или мыльное на экране с масштабом</dt>
+<dd>Проверьте масштаб в настройках экрана; программа сама подстраивается (часть 6.10). В Qt 5 можно задать
+<span class="mono">QT_SCALE_FACTOR=1.25</span>.</dd>
+<dt>Хочу сбросить все настройки</dt>
+<dd>Удалить файл <span class="mono">FabryPerot.ini</span> (часть 6.8). Программа начнёт с первого примера.</dd>
+<dt>Лабораторная «застряла» после перезапуска</dt>
+<dd>Так задумано: незавершённая работа продолжается. Кнопка «Завершить» выключает режим.</dd>
+<dt>Тесты падают с ошибкой про дисплей</dt>
+<dd>Задайте <span class="mono">QT_QPA_PLATFORM=offscreen</span>. Для проверки старой версии Qt — <span class="mono">FABRY_QT=5</span>.</dd>
+<dt>Сборка на GitHub красная</dt>
+<dd>Actions → запуск → задание с красным крестиком → шаг с ошибкой: там полный текст. Чаще всего это упавший тест: его
+имя и значения видны в выводе pytest.</dd>
+</dl>
+
+<!-- ===================================================================== -->
+<h1 class="newpage part">Часть 15. Словарь терминов</h1>
+<dl class="gloss">
+<dt>Антиалиасинг (сглаживание)</dt><dd>полупрозрачные пиксели по краю линии, чтобы край не был «лесенкой».</dd>
+<dt>Артефакт</dt><dd>файл, который сохранился после запуска GitHub Actions (собранная программа).</dd>
+<dt>Бисекция</dt><dd>поиск значения делением отрезка пополам (часть 4.8).</dd>
+<dt>Векторизация</dt><dd>запись вычислений над целыми массивами numpy вместо циклов.</dd>
+<dt>Виджет</dt><dd>элемент окна Qt.</dd>
+<dt>Гамма-коррекция</dt><dd>возведение яркости в степень 1/2,2, чтобы монитор показал её правильно.</dd>
+<dt>Декоратор</dt><dd>строка <span class="mono">@имя</span> перед функцией, изменяющая её поведение (<span class="mono">@property</span>, <span class="mono">@pytest.fixture</span>).</dd>
+<dt>Доверительная граница</dt><dd>полуширина интервала, в который истинное значение попадает с вероятностью 0,95.</dd>
+<dt>Замыкание</dt><dd>внутренняя функция, запомнившая переменные внешней.</dd>
+<dt>Зерно (seed)</dt><dd>число или строка, задающие последовательность псевдослучайных чисел.</dd>
+<dt>Интерполяция</dt><dd>оценка значения между известными точками (линейная — по прямой).</dd>
+<dt>Кэш</dt><dd>сохранённый готовый результат, чтобы не считать заново.</dd>
+<dt>Кодировка</dt><dd>правило перевода символов в байты (UTF-8).</dd>
+<dt>Код завершения</dt><dd>число, которое программа возвращает системе при выходе: 0 — успех.</dd>
+<dt>Компоновка (layout)</dt><dd>объект Qt, расставляющий виджеты.</dd>
+<dt>Контраст</dt><dd>Tmax/Tmin = 1 + F.</dd>
+<dt>Коэффициент Стьюдента</dt><dd>множитель для доверительной границы при малом числе измерений.</dd>
+<dt>Кольца равного наклона</dt><dd>кольца, каждое из которых соответствует одному углу θ.</dd>
+<dt>МНК</dt><dd>метод наименьших квадратов: прямая с наименьшей суммой квадратов отклонений.</dd>
+<dt>Муар</dt><dd>ложный узор из-за того, что мелкая структура не совпадает с сеткой пикселей.</dd>
+<dt>Область свободной дисперсии Δλ (FSR)</dt><dd>расстояние между соседними пиками пропускания.</dd>
+<dt>Перекрытие порядков</dt><dd>когда пик одной линии ложится на соседний пик другой (δλ ≥ Δλ).</dd>
+<dt>Первообразная</dt><dd>функция, производная которой равна данной; разность её значений — интеграл.</dd>
+<dt>Порядок интерференции m</dt><dd>сколько длин волн укладывается в 2nd·cos θ′.</dd>
+<dt>Премультиплированный цвет</dt><dd>каналы, заранее умноженные на прозрачность.</dd>
+<dt>Растеризация</dt><dd>перевод фигуры в пиксели.</dd>
+<dt>Разрешающая способность</dt><dd>λ/w — во сколько раз длина волны больше наименьшей различимой разницы.</dd>
+<dt>Регулярное выражение</dt><dd>шаблон для поиска текста (<span class="mono">^Exec=.*</span>).</dd>
+<dt>Резкость (finesse)</dt><dd>Δλ/w — во сколько раз пик уже расстояния между пиками.</dd>
+<dt>Сигнал и слот</dt><dd>механизм Qt «событие → вызов подключённой функции».</dd>
+<dt>Свёртка</dt><dd>замена каждого значения взвешенной суммой соседей.</dd>
+<dt>Селектор</dt><dd>часть правила QSS, указывающая, к каким виджетам оно относится.</dd>
+<dt>Степени свободы</dt><dd>число измерений минус число найденных из них параметров.</dd>
+<dt>Тег</dt><dd>постоянная метка на коммите git (номер версии).</dd>
+<dt>Функция Эйри</dt><dd>T = Tmax/(1 + F sin²(δ/2)) — пропускание интерферометра.</dd>
+<dt>Ширина пика w (FWHM)</dt><dd>ширина на половине высоты.</dd>
+<dt>Broadcasting</dt><dd>«растягивание» массивов numpy разной формы до общей.</dd>
+<dt>Bootloader (загрузчик)</dt><dd>маленькая программа PyInstaller, которая запускает встроенный Python.</dd>
+<dt>CI</dt><dd>continuous integration — автоматическая проверка и сборка при каждом изменении (у нас GitHub Actions).</dd>
+<dt>CSV</dt><dd>таблица в виде текста с разделителями.</dd>
+<dt>dtype</dt><dd>тип чисел массива numpy.</dd>
+<dt>Event loop</dt><dd>цикл событий Qt.</dd>
+<dt>Fixture</dt><dd>подготовка данных для тестов pytest.</dd>
+<dt>HiDPI</dt><dd>экраны, где в логической точке больше одного физического пикселя.</dd>
+<dt>JSON</dt><dd>текстовый формат словарей и списков.</dd>
+<dt>Offscreen</dt><dd>режим Qt без экрана.</dd>
+<dt>Portable</dt><dd>программа без установки, запускаемая из папки.</dd>
+<dt>QSS</dt><dd>язык оформления виджетов Qt.</dd>
+<dt>Tween</dt><dd>плавный переход значения от старого к новому.</dd>
+<dt>UCRT</dt><dd>системная библиотека C от Microsoft, нужная Python.</dd>
+<dt>YAML</dt><dd>текстовый формат настроек (build.yml).</dd>
+</dl>
+
+</body></html>

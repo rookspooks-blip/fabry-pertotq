@@ -138,7 +138,7 @@ def render_template(path):
         return f"\x00{len(protected) - 1}\x00"
 
     text = re.sub(r"<code\s[^>]*/>", lambda m: protect(code_block(m)), text)
-    text = re.sub(r"<pre>.*?</pre>", lambda m: protect(m.group(0)), text, flags=re.S)
+    text = re.sub(r"<pre[\s>].*?</pre>", lambda m: protect(m.group(0)), text, flags=re.S)
     text = re.sub(r"<fig\s[^>]*/>", lambda m: protect(figure(m)), text)
     text = re.sub(r"<eq(\s[^>]*)?>(.*?)</eq>", lambda m: protect(equation(m)), text, flags=re.S)
     text = inline_math(text)
