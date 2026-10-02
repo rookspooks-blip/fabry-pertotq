@@ -5,7 +5,7 @@ import math
 import numpy as np
 
 from .fmt import num, tick_text, ticks
-from .physics import airy_blurred, airy_mean, order_at, phase
+from .physics import airy, airy_mean, order_at, phase, screen_mean
 from .qt import (QColor, QFont, QImage, QPainter, QPen, QPixmap, QPointF, QRectF, QSize, Qt, QtGui,
                  QtWidgets, Signal, event_pos)
 from .theme import THEME
@@ -50,14 +50,12 @@ class Curve:
     каждого столбца пикселей известно, где кривая в нём выше и ниже всего.
     """
 
-    def __init__(self, value, span, color, name, noise=0.0):
+    def __init__(self, value, span, color, name):
         self.value, self.span, self.color, self.name = value, span, color, name
-        self.noise = noise                         # шум приёмника (реалистичный режим), в единицах y
 
     def reading(self, x):
-        """Показание прибора в точке x: значение плюс случайный шум (если он есть)."""
-        v = float(self.value(np.array([x]))[0])
-        return v + (float(np.random.normal(0.0, self.noise)) if self.noise else 0.0)
+        """Показание прибора в точке x (то, что показывает курсор)."""
+        return float(self.value(np.array([x]))[0])
 
 
 def color_table(color):
@@ -95,7 +93,6 @@ class Plot(QtWidgets.QWidget):
         self.curves, self.marks, self.spans, self.points = [], [], [], []
         self.hover = None
         self.drag = None
-        self.seed = 0                              # шум полоски кривой: одинаковый до следующего пересчёта
         self.base = None                           # кэш: готовый рисунок без перекрестия
         self.setMouseTracking(True)
         self.setMinimumSize(260, 190)
@@ -106,7 +103,6 @@ class Plot(QtWidgets.QWidget):
         self.xlabel, self.xunit, self.full, self.ylim = xlabel, xunit, xlim, ylim
         self.curves, self.marks, self.spans = list(curves), list(marks), list(spans)
         self.points = list(points)
-        self.seed = int(np.random.randint(1 << 30))
         self.refresh()
 
     def refresh(self):
@@ -270,10 +266,6 @@ class Plot(QtWidgets.QWidget):
         x0, x1 = self.view()
         y0, y1 = self.ylim
         lo, hi = curve.span(np.linspace(x0, x1, width + 1))
-        if curve.noise:                            # шум приёмника: полоска кривой «дрожит»
-            rng = np.random.default_rng(self.seed)
-            hi = hi + curve.noise * np.abs(rng.normal(size=width))
-            lo = np.maximum(lo - curve.noise * np.abs(rng.normal(size=width)), 0.0)
         scale = height / (y1 - y0)
         top = ((y1 - hi) * scale).astype(np.float32)[None, :]     # верх кривой в столбце, пиксели
         bottom = ((y1 - lo) * scale).astype(np.float32)[None, :]  # низ кривой в столбце
@@ -424,16 +416,14 @@ class RingView(QtWidgets.QWidget):
         self.center = (0.0, 0.0)                   # точка экрана в центре вида, м (от центра колец)
         self.drag = None
         self.show_order = True                     # показывать порядок m (в лабораторной — скрыт)
-        self.noise = 0.0                           # шум приёмника для показаний яркости
 
-    def show_data(self, lines, half, caption, geom, F, tmax, blur=0.0, noise=0.0):
+    def show_data(self, lines, half, caption, geom, F, tmax, defocus=0.0):
         """lines — [(λ, цвет)] по одной на спектральную линию; half — радиус экрана, м;
-        geom — (d, n, f); F и Tmax — как в функции Эйри; blur — размытие фазы
-        (реалистичный режим), noise — шум приёмника."""
+        geom — (d, n, L), L — расстояние от линзы до экрана; F и Tmax — как в функции Эйри;
+        defocus — радиус кружка расфокусировки, м (0 — экран точно в фокусе)."""
         if self.data is not None and abs(self.data[1] - half) > 1e-12:
             self.scale, self.center = 1.0, (0.0, 0.0)          # сменился размер экрана — лупу сбросить
-        self.data = (lines, half, caption, geom, F, tmax, blur)
-        self.noise = noise
+        self.data = (lines, half, caption, geom, F, tmax, defocus)
         self.image = None                          # старую картинку выбрасываем
         self.update()
 
@@ -462,10 +452,13 @@ class RingView(QtWidgets.QWidget):
                 self.center[1] + (pos.y() - top - size / 2) * pixel)
 
     def brightness(self, r):
-        """Яркость в точке экрана на расстоянии r (м) от центра: две линии делят свет пополам."""
-        lines, _, _, (d, n, f), F, tmax, blur = self.data
-        s = r / np.hypot(r, f)                     # sin θ, где tg θ = r / f
-        return sum(airy_blurred(phase(lam, d, n, s), F, tmax, blur) for lam, _ in lines) / len(lines)
+        """Яркость в точке экрана на расстоянии r (м) от центра: две линии делят свет пополам.
+        Если экран не в фокусе, яркость усреднена по кружку расфокусировки."""
+        lines, _, _, (d, n, L), F, tmax, rho = self.data
+        if rho > 0:
+            return sum(screen_mean(max(r - rho, 0.0), r + rho, lam, d, n, L, F, tmax) for lam, _ in lines) / len(lines)
+        s = r / np.hypot(r, L)                     # sin θ, где tg θ = r / L
+        return sum(airy(phase(lam, d, n, s), F, tmax) for lam, _ in lines) / len(lines)
 
     def make_image(self, side, scale=None, center=None):
         """Картинка side × side пикселей: вид с увеличением scale вокруг точки center.
@@ -475,7 +468,7 @@ class RingView(QtWidgets.QWidget):
         «таблица цветов», несколько тысяч значений), а потом каждый пиксель
         просто берёт цвет из неё. За краем экрана прибора — прозрачно.
         """
-        lines, half, _, (d, n, f), F, tmax, blur = self.data
+        lines, half, _, (d, n, f), F, tmax, rho = self.data
         scale = self.scale if scale is None else scale
         cx, cy = self.center if center is None else center
         pixel = 2 * half / (side * scale)          # размер одного пикселя на экране прибора, м
@@ -489,8 +482,9 @@ class RingView(QtWidgets.QWidget):
             self.index = {key: index}
         count = int(index.max()) + 1
         center_r = (np.arange(count) + 0.5) * pixel / 4    # расстояния из таблицы, м
-        # каждому расстоянию — средняя яркость по окну шириной в пиксель вокруг него
-        r1, r2 = np.maximum(center_r - pixel / 2, 0.0), center_r + pixel / 2
+        # каждому расстоянию — средняя яркость по окну шириной в пиксель вокруг него;
+        # если экран не в фокусе, окно шире на радиус кружка расфокусировки rho
+        r1, r2 = np.maximum(center_r - pixel / 2 - rho, 0.0), center_r + pixel / 2 + rho
         s1, s2 = r1 / np.hypot(r1, f), r2 / np.hypot(r2, f)
         if self.glow:
             # свечение: к яркости добавляем её размытую копию (как ореол на фотографии)
@@ -500,9 +494,7 @@ class RingView(QtWidgets.QWidget):
             kernel /= kernel.sum()
         rgb = np.zeros((count, 3))
         for lam, color in lines:
-            # фаза убывает с радиусом; размытие (реалистичный режим) расширяет окно усреднения
-            p1, p2 = phase(lam, d, n, s1), phase(lam, d, n, s2)
-            bright = airy_mean(p1 + blur, p2 - blur, F, tmax) / len(lines)
+            bright = airy_mean(phase(lam, d, n, s1), phase(lam, d, n, s2), F, tmax) / len(lines)
             if self.glow:
                 padded = np.pad(bright, half_k, mode="reflect")
                 bright = bright + 0.6 * np.convolve(padded, kernel, mode="valid")
@@ -577,8 +569,6 @@ class RingView(QtWidgets.QWidget):
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawEllipse(c, rp, rp)
             bright = float(self.brightness(self.hover))
-            if self.noise:
-                bright += float(np.random.normal(0.0, self.noise))
             text = f"r = {num(self.hover * 1e3)} мм"
             if self.show_order:
                 lam = self.data[0][0][0]
@@ -611,8 +601,6 @@ class RingView(QtWidgets.QWidget):
         pos = event_pos(event)
         if event.button() == Qt.MouseButton.RightButton and self.hover is not None:
             bright = float(self.brightness(self.hover))
-            if self.noise:
-                bright += float(np.random.normal(0.0, self.noise))
             self.picked.emit(self.hover * 1e3, bright)
         elif event.button() == Qt.MouseButton.LeftButton and self.scale > 1:
             self.drag = (pos, self.center)

@@ -135,11 +135,11 @@ def main():
     import random
     win.resize(1600, 1000)
     win.student = ("Иванов И. И.", "СМ1-21")
-    win.realism_switch.setChecked(True)
     win.journal.clear_all()
     v = Variant(0)
     win.set_lab(v)
-    for key, value in (("d", v.d_rings), ("f", v.f_rings), ("screen", 10.0), ("R", 0.9), ("dd", 0.0)):
+    for key, value in (("d", v.d_rings), ("f", v.f_rings), ("L", v.f_rings), ("screen", 10.0), ("R", 0.9),
+                       ("dd", 0.0)):
         win.params[key].set(value)
         win.shown[key] = value
     win.second.setChecked(False)
@@ -159,8 +159,8 @@ def main():
     marks.append((1, QPointF(r.left() - 16, r.center().y())))
     r = rect_in(win, win.params["lam"].secret)
     marks.append((2, QPointF(r.left() - 18, r.center().y())))
-    r = rect_in(win, win.realism_switch)
-    marks.append((3, QPointF(r.left() + 260, r.center().y())))
+    r = rect_in(win, win.params["L"].label)
+    marks.append((3, QPointF(r.left() + 250, r.center().y())))
     r = rect_in(win, win.journal.combo)
     marks.append((4, QPointF(r.left() - 16, r.center().y())))
     r = rect_in(win, win.journal.table)
@@ -194,7 +194,6 @@ def main():
     QtWidgets.QApplication.processEvents()
     win.plot_r.grab().save(os.path.join(OUT, "profile_sum.png"))
     win.plot_r.zoom = None
-    win.realism_switch.setChecked(False)
 
     # 9. Тёмная тема целиком (для методички по визуальной части)
     THEME.set("dark")

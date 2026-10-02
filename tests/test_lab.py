@@ -50,19 +50,17 @@ def test_wavelength_from_ideal_series():
     assert lab.derived("shift", fit, params, None)[1] == pytest.approx(v.lam)
 
 
-def test_realism_keeps_peak_positions():
-    """Размытие опускает и уширяет пики, но не сдвигает их — длина волны определяется верно."""
+def test_defocus_keeps_ring_positions():
+    """Расфокусировка размывает кольца, но в фокусе (L = f) радиус кружка равен нулю."""
+    assert ph.defocus_radius(0.2, 0.2) == 0
+    assert ph.defocus_radius(0.21, 0.2) == pytest.approx(ph.APERTURE / 2 * 0.01 / 0.2)
+    lam, d, f = 600e-9, 3e-3, 0.2
+    r = ph.ring_radii(lam, d, 1.0, f, 0.01)[2]
+    # среднее по узкому окну вокруг кольца — почти максимум, по широкому — меньше
     F = ph.coefficient_f(0.9)
-    blur = ph.blur_halfwidth(600e-9, 5e-3, 1.0, 600e-9 / 60, 0.05e-12)
-    x = np.linspace(-np.pi, np.pi, 20001)
-    T = ph.airy_blurred(x, F, 1.0, blur)
-    assert abs(x[np.argmax(T)]) < 1e-3
-    assert T.max() < 1.0
-    lo, hi = ph.blurred_range(np.linspace(-3, 3, 61), F, 1.0, blur)
-    xs = np.linspace(-3, 3, 60001)
-    col = np.minimum(((xs + 3) / 0.1).astype(int), 59)
-    Ts = ph.airy_blurred(xs, F, 1.0, blur)
-    assert np.all(Ts <= hi[col] + 1e-9) and np.all(Ts >= lo[col] - 1e-9)
+    narrow = ph.screen_mean(r - 1e-6, r + 1e-6, lam, d, 1.0, f, F)
+    wide = ph.screen_mean(r - 1e-4, r + 1e-4, lam, d, 1.0, f, F)
+    assert narrow > 0.95 and wide < narrow
 
 
 def test_rayleigh_limit_close_to_width():

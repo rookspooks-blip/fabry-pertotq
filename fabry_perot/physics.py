@@ -85,51 +85,30 @@ def airy_range(edges, F, tmax=1.0):
     return lo, hi
 
 
-def blur_halfwidth(lam, d, n, flatness=0.0, linewidth=0.0):
-    """Полуширина «размытия» фазы в реалистичном режиме, рад.
+APERTURE = 0.010        # диаметр пучка света на линзе, м
 
-    Неплоскостность зеркал h: зазор в разных местах от d − h/2 до d + h/2,
-    фаза разбегается на ±2πnh/λ. Ширина спектральной линии Γ: фаза меняется
-    на 2π при сдвиге длины волны на Δλ = λ²/(2nd), поэтому ±Γ/2 дают ±πΓ/Δλ.
-    Две причины независимы — полуширины складываются квадратично.
+
+def defocus_radius(L, f, aperture=APERTURE):
+    """Радиус кружка расфокусировки на экране, м.
+
+    Параллельный пучок шириной D линза собирает в точку на расстоянии f. Если экран
+    стоит на расстоянии L ≠ f, вместо точки получается кружок диаметром D·|L − f| / f
+    (подобные треугольники). Кольца размываются; резче всего они при L = f.
     """
-    a_flat = 2 * np.pi * n * flatness / lam
-    a_line = np.pi * linewidth / (lam ** 2 / (2 * n * d))
-    return math.hypot(a_flat, a_line)
+    return aperture / 2 * abs(L - f) / f
 
 
-def airy_blurred(delta, F, tmax=1.0, blur=0.0):
-    """Пропускание с учётом размытия: среднее функции Эйри по окну фаз [δ − a, δ + a].
+def screen_mean(r1, r2, lam, d, n, L, F, tmax=1.0):
+    """Средняя яркость на экране между радиусами r1 и r2, м (экран на расстоянии L от линзы).
 
-    Без размытия (a = 0) — обычная функция Эйри. Среднее считается точно, через
-    первообразную (airy_mean). Пики становятся ниже и шире, а их положения
-    не меняются — поэтому длина волны по положению пиков определяется верно.
+    Луч, прошедший через центр линзы под углом θ, попадает в точку r = L·tg θ, поэтому
+    sin θ = r / √(r² + L²). Среднее считается точно, по первообразной (airy_mean).
     """
-    if blur <= 0:
-        return airy(delta, F, tmax)
-    return airy_mean(delta - blur, delta + blur, F, tmax)
+    s1, s2 = r1 / np.hypot(r1, L), r2 / np.hypot(r2, L)
+    return airy_mean(phase(lam, d, n, s1), phase(lam, d, n, s2), F, tmax)
 
 
-def blurred_range(edges, F, tmax=1.0, blur=0.0):
-    """Наименьшее и наибольшее пропускание на отрезках фаз — как airy_range, но с размытием.
-
-    Размытая функция тоже симметрична и на каждом периоде имеет один пик
-    (δ = 2πm) и один провал (δ = π(2m + 1)), поэтому правило то же: если пик
-    или провал внутри отрезка — берём значение в нём, иначе — на концах.
-    """
-    if blur <= 0:
-        return airy_range(edges, F, tmax)
-    a, b = np.minimum(edges[:-1], edges[1:]), np.maximum(edges[:-1], edges[1:])
-    ta, tb = airy_blurred(a, F, tmax, blur), airy_blurred(b, F, tmax, blur)
-    period = 2 * np.pi
-    top = float(airy_blurred(np.array([0.0]), F, tmax, blur)[0])
-    bottom = float(airy_blurred(np.array([np.pi]), F, tmax, blur)[0])
-    has_peak = np.floor(b / period) * period >= a
-    has_dip = np.floor((b - np.pi) / period) * period + np.pi >= a
-    return (np.where(has_dip, bottom, np.minimum(ta, tb)), np.where(has_peak, top, np.maximum(ta, tb)))
-
-
-def dip_ratio(dlam, fsr, F, blur=0.0):
+def dip_ratio(dlam, fsr, F):
     """Глубина провала между двумя линиями, разнесёнными на δλ: I(середина) / I(максимум).
 
     Две линии одинаковой яркости дают сумму двух пиков. Критерий разрешения,
@@ -138,22 +117,22 @@ def dip_ratio(dlam, fsr, F, blur=0.0):
     """
     shift = 2 * np.pi * dlam / fsr                 # расстояние между пиками по фазе
     x = np.linspace(-shift, 2 * shift, 6001)
-    total = airy_blurred(x, F, 1.0, blur) + airy_blurred(x - shift, F, 1.0, blur)
-    middle = float(airy_blurred(np.array([shift / 2]), F, 1.0, blur)[0] * 2)
+    total = airy(x, F) + airy(x - shift, F)
+    middle = float(airy(shift / 2, F) * 2)
     return middle / float(total.max())
 
 
 RAYLEIGH = 0.81                                    # порог провала для критерия разрешения
 
 
-def rayleigh_limit(fsr, F, blur=0.0):
+def rayleigh_limit(fsr, F):
     """Наименьшая разность длин волн δλ, при которой провал ещё не глубже RAYLEIGH (поиск делением пополам)."""
     lo, hi = 1e-6 * fsr, 0.5 * fsr
-    if dip_ratio(hi, fsr, F, blur) > RAYLEIGH:
+    if dip_ratio(hi, fsr, F) > RAYLEIGH:
         return None
     for _ in range(60):
         mid = (lo + hi) / 2
-        if dip_ratio(mid, fsr, F, blur) > RAYLEIGH:
+        if dip_ratio(mid, fsr, F) > RAYLEIGH:
             lo = mid
         else:
             hi = mid
@@ -257,7 +236,7 @@ def curve_samples(span, width, fsr):
     return int(min(max(30 * span / (width or fsr), 20000), 2e6))
 
 
-def measure_rings(lam, d, n, f, r_max, F, tmax, per_period=6, cap=150000, refine=300, blur=0.0):
+def measure_rings(lam, d, n, f, r_max, F, tmax, per_period=6, cap=150000, refine=300):
     """Светлые кольца «по картинке»: максимумы яркости от центра до края экрана.
 
     Яркость просматривается равномерно по u = sin²θ: фаза почти линейна по u,
@@ -274,7 +253,7 @@ def measure_rings(lam, d, n, f, r_max, F, tmax, per_period=6, cap=150000, refine
     du = u[1] - u[0]
 
     def bright(uu):
-        return airy_blurred(4.0 * np.pi * d * np.sqrt(n * n - uu) / lam, F, tmax, blur)
+        return airy(4.0 * np.pi * d * np.sqrt(n * n - uu) / lam, F, tmax)
 
     T = bright(u)
     near_u = 2 * du

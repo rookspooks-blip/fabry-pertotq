@@ -33,22 +33,17 @@ def f(value, digits=4):
     return f"{value:,.{decimals}f}".replace(",", "\u202f").replace(".", ",").replace("-", "−")
 
 
-def blur_of(v, lam, d, n=1.0):
-    flat, width, _ = v.realism()
-    return ph.blur_halfwidth(lam, d, n, flat, width)
-
-
-def peak_and_width(F, blur, tmax=1.0):
-    """Высота пика и ширина на половине высоты (по фазе) с размытием — численно."""
+def peak_and_width(F, tmax=1.0):
+    """Высота пика и ширина на половине высоты (по фазе) — численно, как меряет студент."""
     x = np.linspace(-np.pi, np.pi, 400001)
-    T = ph.airy_blurred(x, F, tmax, blur)
+    T = ph.airy(x, F, tmax)
     top = T.max()
     idx = np.flatnonzero(T >= top / 2)
     return top, x[idx[-1]] - x[idx[0]]
 
 
 def expected(code):
-    """Ожидаемые результаты варианта (реалистичный режим включён, n = 1)."""
+    """Ожидаемые результаты варианта (n = 1, экран в фокусе)."""
     v = lab.Variant(code)
     lam = v.lam * 1e-9
     out = {"v": v}
@@ -59,7 +54,7 @@ def expected(code):
     for R in TASK3_R:
         F = ph.coefficient_f(R)
         tmax = ph.peak_transmission(R, v.A)
-        top, wphase = peak_and_width(F, blur_of(v, lam, d5), tmax)
+        top, wphase = peak_and_width(F, tmax)
         widths.append((wphase / (2 * np.pi) * fsr5, fsr5 / (wphase / (2 * np.pi) * fsr5), top))
     out["width"] = widths
     r = ph.ring_radii(lam, v.d_rings * 1e-3, 1.0, v.f_rings * 1e-3, 0.010)[:6] * 1e3
@@ -74,15 +69,13 @@ def expected(code):
     for R in TASK6_R:
         F = ph.coefficient_f(R)
         fsr1 = lam ** 2 / (2 * 1e-3)
-        limit = ph.rayleigh_limit(fsr1, F, blur_of(v, lam, 1e-3))
+        limit = ph.rayleigh_limit(fsr1, F)
         res.append(limit * 1e12 if limit else None)
     out["resolve"] = res
     tm = []
     for R in TASK7_R:
         F = ph.coefficient_f(R)
-        ideal = ph.peak_transmission(R, v.A)                  # задание 7 — без реалистичного режима
-        real, _ = peak_and_width(F, blur_of(v, lam, d5), ideal)
-        tm.append((ideal, (1 - R) * (1 - math.sqrt(real))))
+        tm.append(ph.peak_transmission(R, v.A))
     out["tmax"] = tm
     return out
 
@@ -98,10 +91,9 @@ def answers_hidden():
     rows = []
     for code in lab.CODES:
         v = lab.Variant(code)
-        rows.append([code, f(v.lam, 4), f(v.dlam, 3), f(v.A, 1), f"λ/{round(v.lam / v.flatness)}",
-                     f(v.linewidth, 1), f(v.d_rings, 1), f(v.f_rings, 3)])
-    return table(["Код", "λ, нм", "δλ дублета, пм", "A", "Неплоск. h", "Ширина линии Γ, пм", "d (зад. 4), мм",
-                  "f (зад. 4), мм"], rows, "Таблица 1<b>Скрытые величины и параметры вариантов</b>")
+        rows.append([code, f(v.lam, 4), f(v.dlam, 3), f(v.A, 1), f(v.d_rings, 1), f(v.f_rings, 3)])
+    return table(["Код", "λ, нм", "δλ дублета, пм", "A", "d (зад. 4), мм", "линза f (зад. 4), мм"], rows,
+                 "Таблица 1<b>Скрытые величины и параметры вариантов</b>")
 
 
 def answers_tasks_245():
@@ -127,13 +119,12 @@ def answers_tasks_367():
         rows.append([code, f(w[3][0], 3), f(w[3][1], 3), f(w[5][0], 3), f(w[5][1], 3), f(e["dstar"], 4),
                      f(v.dlam, 3), " / ".join(f(x, 3) for x in e["resolve"]),
                      " / ".join(f(v.lam * 1e3 / x, 3) for x in e["resolve"]),
-                     " / ".join(f(t[0], 3) for t in e["tmax"]), f(v.A, 1),
-                     " / ".join(f(t[1], 2) for t in e["tmax"])])
+                     " / ".join(f(t, 3) for t in e["tmax"]), f(v.A, 1)])
     return table(["Код", "$w$ ($R$ = 0,9), пм", "$\\mathcal F$ ($R$ = 0,9)", "$w$ ($R$ = 0,98), пм",
                   "$\\mathcal F$ ($R$ = 0,98)", "$d^*$, мм", "δλ дублета, пм",
                   "$\\delta\\lambda_{\\min}$ ($R$ = 0,8/0,9/0,95), пм", "$\\mathcal A$ = λ/δλ$_{\\min}$",
-                  "$T_{\\max}$ ($R$ = 0,9/0,95), без реализма", "$A$", "$A$, если ошибочно в реалист. режиме"], rows,
-                 "Таблица 3<b>Ожидаемые результаты заданий 3, 6, 7 (реалистичный режим)</b>")
+                  "$T_{\\max}$ ($R$ = 0,9/0,95)", "$A$"], rows,
+                 "Таблица 3<b>Ожидаемые результаты заданий 3, 6, 7</b>")
 
 
 def example_rings():
@@ -149,9 +140,10 @@ def example_rings():
     name, value, err, unit = lab.derived("rings", fit, {"n": 1.0, "d": v.d_rings, "f": v.f_rings}, None)
     mk = sum(k) / 6
     sxx = sum((x - mk) ** 2 for x in k)
-    rows = [[kk, f(rr, 4), f(rr2, 4)] for kk, rr, rr2 in zip(k, r, r2)]
-    tbl = table(["$k$", "$r_k$, мм", "$r_k^2$, мм²"], rows, "Таблица П1<b>Измеренные радиусы колец (пример)</b>",
-                "blank")
+    zones = [math.pi * (r2[i + 1] - r2[i]) for i in range(5)] + [None]
+    rows = [[kk, f(rr, 4), f(rr2, 4), "—" if s is None else f(s, 3)] for kk, rr, rr2, s in zip(k, r, r2, zones)]
+    tbl = table(["$k$", "$r_k$, мм", "$r_k^2$, мм²", "$S_k=\\pi(r_{k+1}^2-r_k^2)$, мм²"], rows,
+                "Таблица П1<b>Измеренные радиусы колец и площади зон (пример)</b>", "blank")
     rel = err / value
     exp = math.floor(math.log10(err))
     if err / 10 ** exp < 2:                        # первая цифра 1 — оставляем две значащие
@@ -161,8 +153,9 @@ def example_rings():
     err_s, val_s = f"{err_r:.{dec}f}".replace(".", ","), f"{val_r:.{dec}f}".replace(".", ",")
     return f"""
 <p>Пример выполнен для варианта, которого нет среди выдаваемых: $d = {f(v.d_rings, 1)}$ мм,
-$f = {f(v.f_rings, 3)}$ мм, $n = 1$, реалистичный режим. Радиусы шести колец, измеренные курсором на
-разрезе при увеличенном масштабе, — в табл. П1.</p>
+$f = {f(v.f_rings, 3)}$ мм, $n = 1$, экран в фокусе. Радиусы шести колец, измеренные курсором на
+разрезе при увеличенном масштабе, — в табл. П1. Пример предназначен для преподавателя: студентам его не выдают,
+чтобы они сами проверили равенство площадей зон и вывели закон (10), а не подгоняли результат под образец.</p>
 {tbl}
 <p><b>1. Метод наименьших квадратов.</b> Для точек $(k_i,\\,y_i=r_i^2)$, $i=1\\ldots n$, $n=6$:
 $\\bar k = {f(mk, 3)}$, $\\sum(k_i-\\bar k)^2 = {f(sxx, 3)}$. Наклон и свободный член</p>
@@ -180,7 +173,7 @@ $\\Delta b = t\\,\\sigma_b = {f(fit['db'], 2)}$ мм².</p>
 <p><b>4. Результат</b> (погрешность округляется до одной-двух значащих цифр, значение — до того же разряда):</p>
 <eq>\\lambda = ({val_s} \\pm {err_s})\\ \\text{{нм}},\\qquad P=0{{,}}95 .</eq>
 <p>Скрытая длина волны этого примера — {f(v.lam, 4)} нм: она лежит в пределах найденного интервала. Журнал
-программы выполняет те же вычисления автоматически (рис. 8); в отчёте нужно привести их вручную хотя бы для
+программы выполняет те же вычисления автоматически; в отчёте студент приводит их вручную хотя бы для
 одного задания.</p>
 """
 

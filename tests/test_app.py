@@ -2,6 +2,7 @@
 
 import os
 
+import numpy as np
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -99,8 +100,9 @@ def test_fast_step_is_short(window):
 def test_lab_mode_hides_and_records(window, tmp_path):
     from fabry_perot.lab import Variant
     window.journal.clear_all()
-    window.realism_switch.setChecked(True)
     window.set_lab(Variant(5))
+    assert window.params["L"].label.isVisibleTo(window)       # экран можно двигать
+    assert window.params["f"].combo.isVisibleTo(window)       # линза — из набора
     assert window.params["lam"].hidden and window.params["A"].hidden
     assert window.pages.currentIndex() == 1                   # справа — только журнал
     assert window.context()["lam"] is None
@@ -122,20 +124,28 @@ def test_lab_mode_hides_and_records(window, tmp_path):
     text = (tmp_path / "lab.csv").read_text(encoding="utf-8-sig")
     assert "Вариант" in text and str(Variant(5).lam).replace(".", ",") not in text
     window.set_lab(None)
-    window.realism_switch.setChecked(False)
+    assert not window.params["L"].label.isVisibleTo(window)
     assert not window.params["lam"].hidden and window.pages.currentIndex() == 0
 
 
-def test_realism_lowers_peaks(window):
+def test_screen_out_of_focus_blurs_rings(window):
+    """В лабораторной экран не в фокусе — кольца размыты (контраст меньше), в фокусе — резкие."""
+    from fabry_perot.lab import Variant
+    window.set_lab(Variant(3))
+    f = window.params["f"].value()
+    window.params["L"].set(f)
+    window.shown["L"] = f
+    window.recalc()
+    rv = window.ring_view
+    rs = np.linspace(5e-3, 9e-3, 20000)               # край экрана: кольца тонкие и частые
+    sharp = np.array([rv.brightness(r) for r in rs])
+    window.params["L"].set(f + 15)
+    window.shown["L"] = f + 15
+    window.recalc()
+    blurred = np.array([rv.brightness(r) for r in rs])
+    assert blurred.std() < 0.5 * sharp.std()
     window.set_lab(None)
-    window.realism_switch.setChecked(False)
-    window.recalc()
-    ideal = window.curve[1].max()
-    window.realism_switch.setChecked(True)
-    window.recalc()
-    assert window.curve[1].max() < ideal
-    window.realism_switch.setChecked(False)
-    window.recalc()
+
 
 
 def test_ring_zoom_and_sum_curve(window):

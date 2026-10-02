@@ -24,13 +24,17 @@ PARAMS = [
      "Среда между зеркалами: воздух ≈ 1, стекло ≈ 1,5.", False),
     ("f", "Фокус линзы f", "мм", 50.0, 500.0, 200.0, 0, 1.0,
      "Линза собирает свет на экран. Больше f — кольца крупнее.", False),
+    ("L", "Расстояние линза — экран L", "мм", 50.0, 600.0, 200.0, 1, 0.5,
+     "Экран нужно поставить в фокальную плоскость линзы: при L = f кольца самые резкие.", False),
     ("screen", "Экран: от центра до края", "мм", 1.0, 100.0, 10.0, 1, 0.5,
      "Какую часть картины колец видно на экране.", False),
 ]
+# Линзы, которые бывают в лаборатории: фокусное расстояние не плавное, а из набора
+LENSES = [100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0]
 LINE2 = ("dlam", "Разность длин волн δλ", "пм", 0.01, 2000.0, 2.0, 2, 0.1,
          "λ₂ = λ₁ + δλ; 1 пм = 0,001 нм. Шкала ползунка логарифмическая.", True)
 
-BASE = dict(dd=0.0, A=0.0, n=1.0, f=200.0, screen=10.0)
+BASE = dict(dd=0.0, A=0.0, n=1.0, f=200.0, L=200.0, screen=10.0)
 # название, параметры, δλ второй линии в пм (None — вторая линия выключена)
 PRESETS = [
     ("He-Ne лазер · 632,8 нм", dict(BASE, lam=632.8, d=5.0, R=0.9), None),
@@ -74,11 +78,13 @@ class ParamRow:
     def __init__(self, grid, row, spec, on_change):
         self.key, self.name, self.unit, self.lo, self.hi, value, decimals, step, tip, self.log = spec
         self.on_change = on_change
+        self.grid, self.row = grid, row
+        self.combo = None                          # выбор из набора значений (линзы в лабораторной)
         self.from_slider = False
         self.forced = None                         # плавно или сразу — если решает программа
         units = self.unit or "без единиц"
-        label = QtWidgets.QLabel(self.name)
-        limits = QtWidgets.QLabel(f"{short(self.lo)} … {short(self.hi)} {units}")   # допустимые значения
+        self.label = label = QtWidgets.QLabel(self.name)
+        self.limits = limits = QtWidgets.QLabel(f"{short(self.lo)} … {short(self.hi)} {units}")   # допустимые значения
         limits.setObjectName("limits")
         limits.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
@@ -168,6 +174,10 @@ class ParamRow:
         self.forced = smooth
         self.spin.setValue(value)
         self.forced = None
+        if self.combo is not None:                 # выбор из набора — показать то же значение в списке
+            i = self.combo.findData(float(value))
+            if i >= 0:
+                self.combo.setCurrentIndex(i)
         # если значение не изменилось, поле не пришлёт сигнал — ставим ползунок сами
         self.show_on_slider(self.spin.value())
 
@@ -180,6 +190,40 @@ class ParamRow:
 
     def value(self):
         return self.spin.value()
+
+    def set_row_visible(self, visible):
+        """Показать или спрятать строку целиком (расстояние до экрана — только в лабораторной)."""
+        for w in (self.label, self.limits, self.slider, self.spin):
+            w.setVisible(visible)
+        if not visible:
+            self.secret.hide()
+            if self.combo is not None:
+                self.combo.hide()
+
+    def use_choices(self, values):
+        """Значение только из набора (values) — выпадающий список вместо ползунка и поля; None — как обычно."""
+        if values is None:
+            if self.combo is not None:
+                self.combo.hide()
+            self.slider.show()
+            self.spin.show()
+            self.limits.setText(f"{short(self.lo)} … {short(self.hi)} {self.unit}")
+            return
+        if self.combo is None:
+            self.combo = QtWidgets.QComboBox()
+            self.combo.setFixedWidth(112)
+            self.grid.addWidget(self.combo, 2 * self.row + 1, 1, Qt.AlignmentFlag.AlignRight)
+            self.combo.activated.connect(lambda i: self.set(self.combo.itemData(i)))
+        self.combo.clear()
+        for v in values:
+            self.combo.addItem(f"{short(v)} {self.unit}", v)
+        best = min(range(len(values)), key=lambda i: abs(values[i] - self.value()))
+        self.combo.setCurrentIndex(best)
+        self.set(values[best])
+        self.slider.hide()
+        self.spin.hide()
+        self.combo.show()
+        self.limits.setText("набор линз")
 
     def set_hidden(self, hidden):
         """Скрыть значение (лабораторная работа): поле и ползунок заменяются надписью «скрыто»."""
