@@ -1,9 +1,3 @@
-"""Рисует значок программы в assets/: icon.png, icon.ico (Windows) и icon.icns (macOS).
-
-Запуск:  python tools/make_icon.py   (нужны PyQt и Pillow)
-Значок рисуется той же функцией, что и в окне программы, — они всегда совпадают.
-"""
-
 import os
 import sys
 
@@ -11,10 +5,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from PIL import Image  # noqa: E402
+from PIL import Image
 
-from fabry_perot.qt import QtWidgets  # noqa: E402
-from fabry_perot.theme import app_icon_image  # noqa: E402
+from fabry_perot.qt import QtWidgets
+from fabry_perot.theme import app_icon_image
 
 app = QtWidgets.QApplication([])
 out = os.path.join(ROOT, "assets")

@@ -1,6 +1,6 @@
 (function () {
   "use strict";
-  const stack = [];                                  // откуда пришли: id ссылок по порядку
+  const stack = [];
   const floatBack = document.getElementById("floatback");
   const KEY = "fp-defense-known";
   let known = new Set();
@@ -10,7 +10,7 @@
   let who = "";
   try { who = localStorage.getItem(WHO) || ""; } catch (e) { who = ""; }
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify([...known])); } catch (e) { /* без памяти */ } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify([...known])); } catch (e) {  } }
 
   function flash(el) {
     if (!el) return;
@@ -19,10 +19,10 @@
     el.classList.add("flash");
   }
 
-  function reveal(el) {                              // показать ответ, если он спрятан режимом проверки
+  function reveal(el) {
     const card = el && el.closest(".card");
     if (card) card.classList.add("shown");
-    let sec = el && el.closest("[data-hide]");          // чужой вопрос из словаря: открыть его и раздел
+    let sec = el && el.closest("[data-hide]");
     while (sec) { sec.removeAttribute("data-hide"); sec = sec.closest("[data-hide]"); }
   }
 
@@ -35,7 +35,6 @@
 
   function updateBack() { floatBack.hidden = stack.length === 0; }
 
-  // переход по ссылке в словарь или к вопросу: запоминаем, откуда ушли
   document.addEventListener("click", function (ev) {
     const a = ev.target.closest("a.g, a.jump");
     if (!a) return;
@@ -47,7 +46,7 @@
     stack.push(a.id);
     updateBack();
     go(target);
-    try { history.replaceState(null, "", "#" + id); } catch (e) { /* не важно */ }
+    try { history.replaceState(null, "", "#" + id); } catch (e) {  }
   });
 
   function back() {
@@ -60,7 +59,6 @@
   }
   document.querySelectorAll("button.back").forEach(b => b.addEventListener("click", back));
 
-  // «Знаю»
   const cards = [...document.querySelectorAll(".card")];
   const prog = document.getElementById("prog");
   function paint() {
@@ -82,14 +80,12 @@
     b.closest(".card").classList.add("shown");
   }));
 
-  // режим проверки
   const quiz = document.getElementById("quiz");
   quiz.addEventListener("change", function () {
     document.body.classList.toggle("quiz", quiz.checked);
     cards.forEach(c => c.classList.remove("shown"));
   });
 
-  // поиск и «только невыученные»
   const find = document.getElementById("find");
   const unknownOnly = document.getElementById("unknown");
   function mine(c) { return !who || c.dataset.owner === who || c.dataset.owner === "Общие"; }
@@ -100,7 +96,7 @@
       const ok = !unknownOnly.checked || !known.has(c.dataset.q);
       if (hit && ok && mine(c)) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
     });
-    // разделы без видимых вопросов прячем, в оглавлении — сколько осталось
+
     document.querySelectorAll("section[data-sec]").forEach(s => {
       const n = s.querySelectorAll(".card:not([data-hide])").length;
       const li = document.querySelector('.toc li[data-sec="' + s.dataset.sec + '"]');
@@ -118,10 +114,9 @@
   find.addEventListener("input", filter);
   unknownOnly.addEventListener("change", filter);
 
-  // кто ты: Артём / Егор / Илья / все
   function choose(name) {
     who = name || "";
-    try { localStorage.setItem(WHO, who); } catch (e) { /* без памяти */ }
+    try { localStorage.setItem(WHO, who); } catch (e) {  }
     document.querySelectorAll(".pick").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === who ? "true" : "false"));
     document.querySelectorAll(".plan").forEach(p => { p.hidden = p.dataset.plan !== who; });
     document.body.dataset.who = who;

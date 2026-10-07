@@ -1,13 +1,9 @@
-"""Параметры модели, готовые примеры и строка параметра (ползунок + поле ввода)."""
-
 import math
 
 from .fmt import short
 from .qt import Qt, QtWidgets
 from .theme import THEME, spectrum_gradient
 
-# ключ, название, единица, минимум, максимум, по умолчанию, знаков после запятой, шаг,
-# подсказка, логарифмическая шкала ползунка
 PARAMS = [
     ("lam", "Длина волны λ₁", "нм", 380.0, 780.0, 632.8, 1, 0.1,
      "Цвет света: 400 нм — фиолетовый, 530 нм — зелёный, 630 нм — красный.", False),
@@ -29,13 +25,11 @@ PARAMS = [
     ("screen", "Экран: от центра до края", "мм", 1.0, 100.0, 10.0, 1, 0.5,
      "Какую часть картины колец видно на экране.", False),
 ]
-# Линзы, которые бывают в лаборатории: фокусное расстояние не плавное, а из набора
 LENSES = [100.0, 150.0, 200.0, 250.0, 300.0, 400.0, 500.0]
 LINE2 = ("dlam", "Разность длин волн δλ", "пм", 0.01, 2000.0, 2.0, 2, 0.1,
          "λ₂ = λ₁ + δλ; 1 пм = 0,001 нм. Шкала ползунка логарифмическая.", True)
 
 BASE = dict(dd=0.0, A=0.0, n=1.0, f=200.0, L=200.0, screen=10.0)
-# название, параметры, δλ второй линии в пм (None — вторая линия выключена)
 PRESETS = [
     ("He-Ne лазер · 632,8 нм", dict(BASE, lam=632.8, d=5.0, R=0.9), None),
     ("Натриевый дублет · 589,0 / 589,6 нм", dict(BASE, lam=589.0, d=0.2, R=0.9, screen=25.0), 600.0),
@@ -47,15 +41,11 @@ PRESETS = [
     ("Плохие зеркала, R = 0,3", dict(BASE, lam=532.0, d=2.0, R=0.3), None),
 ]
 
-# главные величины, которые показываются крупно над таблицей:
-# (название строки таблицы, короткая подпись на плитке)
 TILES = [("Расстояние между пиками Δλ", "Между пиками Δλ"), ("Ширина пика w", "Ширина пика w"),
          ("Резкость Δλ / w", "Резкость Δλ / w"), ("Разрешающая способность", "Разрешающая сила")]
 
 
 class StepSpin(QtWidgets.QDoubleSpinBox):
-    """Поле ввода, которое помнит, что число изменили шагом (стрелки ↑ ↓, колёсико), а не набрали."""
-
     stepping = False
 
     def stepBy(self, steps):
@@ -65,26 +55,18 @@ class StepSpin(QtWidgets.QDoubleSpinBox):
 
 
 class ParamRow:
-    """Строка параметра: название, пределы, ползунок и поле ввода.
-
-    Ползунок и поле связаны: двигаешь одно — меняется другое. Главное окно
-    узнаёт, откуда пришло новое значение: от ползунка (картина меняется сразу)
-    или из поля ввода — с клавиатуры, колёсиком, стрелками (картина плавно
-    переплывает от старого значения к новому).
-    """
-
-    STEPS = 1000                                   # сколько положений у ползунка
+    STEPS = 1000
 
     def __init__(self, grid, row, spec, on_change):
         self.key, self.name, self.unit, self.lo, self.hi, value, decimals, step, tip, self.log = spec
         self.on_change = on_change
         self.grid, self.row = grid, row
-        self.combo = None                          # выбор из набора значений (линзы в лабораторной)
+        self.combo = None
         self.from_slider = False
-        self.forced = None                         # плавно или сразу — если решает программа
+        self.forced = None
         units = self.unit or "без единиц"
         self.label = label = QtWidgets.QLabel(self.name)
-        self.limits = limits = QtWidgets.QLabel(f"{short(self.lo)} … {short(self.hi)} {units}")   # допустимые значения
+        self.limits = limits = QtWidgets.QLabel(f"{short(self.lo)} … {short(self.hi)} {units}")
         limits.setObjectName("limits")
         limits.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
         self.slider = QtWidgets.QSlider(Qt.Orientation.Horizontal)
@@ -95,23 +77,17 @@ class ParamRow:
         self.spin.setSingleStep(step)
         self.spin.setFixedWidth(112)
         self.spin.setAlignment(Qt.AlignmentFlag.AlignRight)
-        # новое число из поля приходит только после Enter или ухода из поля,
-        # а не на каждую нажатую цифру — иначе картина «поплывёт» к 1, потом к 12…
         self.spin.setKeyboardTracking(False)
-        # без стрелок: так поле аккуратнее; число меняется колёсиком мыши и клавишами ↑ ↓
         self.spin.setButtonSymbols(QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
         if self.unit:
             self.spin.setSuffix(" " + self.unit)
         for widget in (label, limits, self.slider, self.spin):
             widget.setToolTip(tip)
-        # каждый параметр занимает две строки сетки:
-        # сверху название и пределы, снизу ползунок и поле ввода
         label.setContentsMargins(0, 8, 0, 0)
         grid.addWidget(label, 2 * row, 0)
         grid.addWidget(limits, 2 * row, 1)
         grid.addWidget(self.slider, 2 * row + 1, 0)
         grid.addWidget(self.spin, 2 * row + 1, 1, Qt.AlignmentFlag.AlignRight)
-        # в лабораторной работе значение может быть скрыто — вместо поля надпись «скрыто»
         self.secret = QtWidgets.QLabel("скрыто")
         self.secret.setObjectName("secret")
         self.secret.setFixedWidth(112)
@@ -125,7 +101,6 @@ class ParamRow:
         self.set(value)
 
     def restyle(self):
-        """У ползунка длины волны дорожка раскрашена радугой (зависит от темы)."""
         if self.key == "lam":
             self.slider.setStyleSheet(
                 f"QSlider::groove:horizontal {{ height: 6px; border-radius: 3px; background: {spectrum_gradient()}; }}"
@@ -134,7 +109,6 @@ class ParamRow:
                 f" background: white; border: 2px solid {THEME['surface'] if THEME.dark else THEME['text']}; }}")
 
     def to_slider(self, value):
-        """Значение → положение ползунка (для δλ шкала логарифмическая)."""
         if self.log:
             t = math.log(value / self.lo) / math.log(self.hi / self.lo)
         else:
@@ -142,12 +116,11 @@ class ParamRow:
         return round(t * self.STEPS)
 
     def from_slider_pos(self, pos):
-        """Положение ползунка → значение."""
         t = pos / self.STEPS
         return self.lo * (self.hi / self.lo) ** t if self.log else self.lo + t * (self.hi - self.lo)
 
     def slider_moved(self, pos):
-        self.from_slider = True                    # поле ввода не должно «дёргать» ползунок назад
+        self.from_slider = True
         self.spin.setValue(self.from_slider_pos(pos))
         self.from_slider = False
 
@@ -155,13 +128,13 @@ class ParamRow:
         if not self.from_slider:
             self.show_on_slider(value)
         if self.from_slider:
-            smooth = False                         # ведут ползунок — меняем сразу
+            smooth = False
         elif self.forced is not None:
             smooth = self.forced
         elif self.spin.stepping:
-            smooth = "fast"                        # шаг стрелкой или колёсиком — короткий переход
+            smooth = "fast"
         else:
-            smooth = True                          # ввели число — плавный переход
+            smooth = True
         self.on_change(self.key, smooth)
 
     def show_on_slider(self, value):
@@ -170,19 +143,16 @@ class ParamRow:
         self.slider.blockSignals(False)
 
     def set(self, value, smooth=False):
-        """Выставить значение из программы (готовый пример, сохранённые настройки)."""
         self.forced = smooth
         self.spin.setValue(value)
         self.forced = None
-        if self.combo is not None:                 # выбор из набора — показать то же значение в списке
+        if self.combo is not None:
             i = self.combo.findData(float(value))
             if i >= 0:
                 self.combo.setCurrentIndex(i)
-        # если значение не изменилось, поле не пришлёт сигнал — ставим ползунок сами
         self.show_on_slider(self.spin.value())
 
     def display(self, value):
-        """Только показать значение, ничего не пересчитывая (анимация микросдвига)."""
         self.spin.blockSignals(True)
         self.spin.setValue(value)
         self.spin.blockSignals(False)
@@ -192,7 +162,6 @@ class ParamRow:
         return self.spin.value()
 
     def set_row_visible(self, visible):
-        """Показать или спрятать строку целиком (расстояние до экрана — только в лабораторной)."""
         for w in (self.label, self.limits, self.slider, self.spin):
             w.setVisible(visible)
         if not visible:
@@ -201,7 +170,6 @@ class ParamRow:
                 self.combo.hide()
 
     def use_choices(self, values):
-        """Значение только из набора (values) — выпадающий список вместо ползунка и поля; None — как обычно."""
         if values is None:
             if self.combo is not None:
                 self.combo.hide()
@@ -226,8 +194,7 @@ class ParamRow:
         self.limits.setText("набор линз")
 
     def set_hidden(self, hidden):
-        """Скрыть значение (лабораторная работа): поле и ползунок заменяются надписью «скрыто»."""
         self.hidden = hidden
         self.spin.setVisible(not hidden)
         self.secret.setVisible(hidden)
-        self.slider.setVisible(not hidden)          # положение ползунка тоже ничего не подсказывает
+        self.slider.setVisible(not hidden)

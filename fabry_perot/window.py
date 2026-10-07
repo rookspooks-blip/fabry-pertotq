@@ -1,5 +1,3 @@
-"""Главное окно: параметры слева, графики и кольца в середине, измерения справа."""
-
 import csv
 
 import numpy as np
@@ -16,12 +14,11 @@ from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_p
                     stylesheet, wavelength_rgb)
 from .widgets import Curve, Plot, RingView, ToggleSwitch, card_title, make_card, polish
 
-TWEEN_MS = 850         # сколько длится плавный переход к новому значению, мс
-FAST_MS = 150          # короткий переход — шаг стрелкой или колёсиком в поле ввода
+TWEEN_MS = 850
+FAST_MS = 150
 
 
 def sampled_span(value, samples=9):
-    """Наименьшее и наибольшее значение гладкой кривой в столбцах между edges — по нескольким точкам столбца."""
     def span(edges):
         t = np.linspace(0.0, 1.0, samples)
         grid = edges[:-1, None] + (edges[1:] - edges[:-1])[:, None] * t[None, :]
@@ -31,42 +28,34 @@ def sampled_span(value, samples=9):
 
 
 def ease(t):
-    """Плавный разгон и торможение: 0 → 1 по S-образной кривой (ease-in-out cubic)."""
     return 4 * t ** 3 if t < 0.5 else 1 - (2 - 2 * t) ** 3 / 2
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    """Сверху заголовок и кнопки, слева параметры, в середине графики и кольца,
-    справа измерения."""
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
-        self.ready = False                         # пока окно строится, плавных переходов нет
-        self.applying = False                      # выставляется готовый пример
-        self.results = []                          # строки таблицы (нужны для CSV)
-        self.curve = (np.zeros(0), np.zeros(0))    # последний график T(λ) (для CSV)
-        self.radii = (np.zeros(0), np.zeros(0))    # радиусы колец: по картинке и по формуле
-        self.shown = {}                            # значения, которые сейчас на картинке
-        self.tweens = {}                           # плавные переходы: ключ → (от, до, начало, лог., длительность)
-        self.lab = None                            # вариант лабораторной работы (Variant) или None
-        self.student = ("", "")                    # ФИО и группа — для подписи снимков и файлов
+        self.ready = False
+        self.applying = False
+        self.results = []
+        self.curve = (np.zeros(0), np.zeros(0))
+        self.radii = (np.zeros(0), np.zeros(0))
+        self.shown = {}
+        self.tweens = {}
+        self.lab = None
+        self.student = ("", "")
         self.clock = QtCore.QElapsedTimer()
         self.clock.start()
-        # настройки в INI-файле (на Windows — в папке %APPDATA%, а не в реестре)
         self.settings = QtCore.QSettings(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope,
                                          "SELF-BMSTU", "FabryPerot")
 
-        # Пересчёт не чаще раза в 15 мс: ползунок шлёт много сигналов подряд
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(15)
         self.timer.timeout.connect(self.recalc)
-        # Кадры плавного перехода — примерно 60 в секунду
         self.tween_timer = QtCore.QTimer(self)
         self.tween_timer.setInterval(16)
         self.tween_timer.timeout.connect(self.tween_step)
-        # Анимация микросдвига зеркала
         self.scan_timer = QtCore.QTimer(self)
         self.scan_timer.setInterval(30)
         self.scan_timer.timeout.connect(self.scan_step)
@@ -81,9 +70,9 @@ class MainWindow(QtWidgets.QMainWindow):
         splitter.addWidget(self.build_controls())
         splitter.addWidget(self.build_views())
         splitter.addWidget(self.build_results())
-        splitter.setStretchFactor(1, 1)            # при растяжении окна растут графики
-        splitter.setChildrenCollapsible(False)     # колонки нельзя «схлопнуть» до нуля
-        splitter.setHandleWidth(12)                # промежутки между колонками
+        splitter.setStretchFactor(1, 1)
+        splitter.setChildrenCollapsible(False)
+        splitter.setHandleWidth(12)
         column.addWidget(splitter, 1)
         self.setCentralWidget(page)
         self.build_actions()
@@ -98,9 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.restore()
         self.ready = True
 
-    # --- постройка окна ---
     def build_header(self):
-        """Шапка: значок, название, кнопки сохранения, тема и справка."""
         row = QtWidgets.QHBoxLayout()
         row.setSpacing(6)
         logo = QtWidgets.QLabel()
@@ -114,7 +101,6 @@ class MainWindow(QtWidgets.QMainWindow):
         title.setObjectName("appTitle")
         sub = QtWidgets.QLabel("интерактивная модель · проект СЭЛФ, МГТУ им. Н. Э. Баумана")
         sub.setObjectName("appSub")
-        # на узком экране подзаголовок уступает место кнопкам (обрезается, а не раздвигает окно)
         sub.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Preferred)
         sub.setMinimumWidth(1)
         names.addWidget(title)
@@ -156,7 +142,6 @@ class MainWindow(QtWidgets.QMainWindow):
         return row
 
     def build_controls(self):
-        """Левая колонка: готовые примеры, параметры, анимация, вторая линия."""
         panel = QtWidgets.QWidget()
         panel.setObjectName("side")
         column = QtWidgets.QVBoxLayout(panel)
@@ -186,7 +171,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params = {}
         for row, spec in enumerate(PARAMS):
             self.params[spec[0]] = ParamRow(grid, row, spec, self.param_changed)
-        self.params["L"].set_row_visible(False)    # экран двигают только в лабораторной
+        self.params["L"].set_row_visible(False)
         layout.addLayout(grid)
         hint = QtWidgets.QLabel("Ползунок меняет картину сразу, число из поля — плавно. "
                                 "Поле понимает Enter, колёсико и стрелки ↑ ↓.")
@@ -230,7 +215,7 @@ class MainWindow(QtWidgets.QMainWindow):
         column.addWidget(box)
         column.addStretch()
 
-        scroll = QtWidgets.QScrollArea()           # на маленьком экране колонку можно прокрутить
+        scroll = QtWidgets.QScrollArea()
         scroll.setWidget(panel)
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QtWidgets.QFrame.Shape.NoFrame)
@@ -240,14 +225,11 @@ class MainWindow(QtWidgets.QMainWindow):
         return scroll
 
     def build_views(self):
-        """Середина: график пропускания, картина колец и её разрез по радиусу."""
         self.plot_t = Plot("Пропускание T(λ) — свет падает перпендикулярно", "λ − λ₁", "Пропускание T")
         self.plot_r = Plot("Разрез колец по радиусу", "r", "Яркость I / I₀")
         self.ring_view = RingView()
-        # наведение на кольца показывает тот же радиус на разрезе — и наоборот
         self.ring_view.hovered.connect(self.plot_r.set_hover)
         self.plot_r.hovered.connect(self.ring_view.set_hover)
-        # правый щелчок — записать точку в журнал измерений
         self.plot_t.picked.connect(lambda x, y: self.pick(lambda: self.journal.plot_pick(x, self.plot_t.xunit, y)))
         self.ring_view.picked.connect(lambda r, y: self.pick(lambda: self.journal.ring_pick(r, y)))
         self.plot_r.picked.connect(lambda r, y: self.pick(lambda: self.journal.ring_pick(r, y)))
@@ -270,18 +252,17 @@ class MainWindow(QtWidgets.QMainWindow):
         bottom = QtWidgets.QSplitter(Qt.Orientation.Horizontal)
         bottom.addWidget(screen)
         bottom.addWidget(self.plot_r)
-        bottom.setSizes([470, 530])                # доли ширины: кольца 47 %, разрез 53 %
+        bottom.setSizes([470, 530])
         views = QtWidgets.QSplitter(Qt.Orientation.Vertical)
         views.addWidget(self.plot_t)
         views.addWidget(bottom)
-        views.setSizes([420, 580])                 # доли высоты: график 42 %, кольца 58 %
+        views.setSizes([420, 580])
         for splitter in (bottom, views):
             splitter.setChildrenCollapsible(False)
             splitter.setHandleWidth(12)
         return views
 
     def build_results(self):
-        """Правая колонка: две страницы — «Результаты» (измерения программы) и «Журнал» (свои измерения)."""
         outer = QtWidgets.QWidget()
         outer_column = QtWidgets.QVBoxLayout(outer)
         outer_column.setContentsMargins(10, 0, 0, 10)
@@ -305,7 +286,6 @@ class MainWindow(QtWidgets.QMainWindow):
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(10)
 
-        # плитки 2 × 2: крупно — значение по графику, под ним — по формуле и расхождение
         tiles = QtWidgets.QGridLayout()
         tiles.setSpacing(10)
         self.tiles = []
@@ -322,7 +302,7 @@ class MainWindow(QtWidgets.QMainWindow):
             note.setObjectName("tileNote")
             badge.setObjectName("badge")
             badge.setToolTip("Расхождение измерения по графику и формулы")
-            foot = QtWidgets.QHBoxLayout()         # формула и справа значок расхождения
+            foot = QtWidgets.QHBoxLayout()
             foot.setSpacing(4)
             foot.addWidget(note)
             foot.addStretch()
@@ -341,15 +321,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.SelectionMode.NoSelection)
         self.table.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.table.setShowGrid(False)
-        self.table.setAlternatingRowColors(True)   # строки через одну чуть другого цвета
+        self.table.setAlternatingRowColors(True)
         self.table.setWordWrap(True)
-        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)   # длинные названия переносятся
+        self.table.setTextElideMode(Qt.TextElideMode.ElideNone)
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QtWidgets.QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QtWidgets.QHeaderView.ResizeMode.ResizeToContents)
         header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        # высоту строк пересчитываем, только когда меняется ширина столбца (а не на каждом кадре)
         header.sectionResized.connect(lambda *args: self.table.resizeRowsToContents())
         column.addWidget(self.table, 1)
         note = QtWidgets.QLabel("«По графику» — программа сама меряет пики на кривых, «по формуле» — "
@@ -371,20 +350,17 @@ class MainWindow(QtWidgets.QMainWindow):
         return outer
 
     def show_page(self, index):
-        """Переключить правую колонку: 0 — результаты программы, 1 — журнал измерений."""
         if self.lab is not None:
-            index = 1                              # в лабораторной результаты программы скрыты
+            index = 1
         self.pages.setCurrentIndex(index)
         for i, button in enumerate(self.page_buttons):
             button.setChecked(i == index)
 
     def pick(self, action):
-        """Правый щелчок: открыть журнал и записать туда точку."""
         self.show_page(1)
         action()
 
     def build_actions(self):
-        """Сочетания клавиш."""
         for keys, slot in (("Ctrl+S", self.save_png), ("Ctrl+Shift+S", self.save_rings),
                            ("Ctrl+E", self.save_csv), ("Ctrl+Shift+C", self.copy_table),
                            ("Ctrl+T", self.toggle_theme), ("F1", self.show_help),
@@ -394,18 +370,14 @@ class MainWindow(QtWidgets.QMainWindow):
             action.triggered.connect(slot)
             self.addAction(action)
 
-    # --- изменение параметров и плавные переходы ---
     def param_changed(self, key, smooth):
-        """Параметр изменился: сразу (ползунок) или плавным переходом (число из поля)."""
-        if key not in self.params:                 # строка параметра ещё строится
+        if key not in self.params:
             return
         target = self.params[key].value()
         if key == "dd" and self.scan_timer.isActive():
-            self.scan_timer.stop()                 # микросдвиг взяли в руки — анимация останавливается
+            self.scan_timer.stop()
             self.update_scan_button()
         if smooth and self.ready and key in self.shown:
-            # переход начинается с того, что на картинке сейчас, — даже если
-            # предыдущий переход ещё не закончился; шаг стрелкой — короткий переход
             duration = FAST_MS if smooth == "fast" else TWEEN_MS
             self.tweens[key] = (self.shown[key], target, self.clock.elapsed(), self.params[key].log, duration)
             if not self.tween_timer.isActive():
@@ -414,16 +386,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tweens.pop(key, None)
             self.shown[key] = target
             self.schedule()
-        if not self.applying:                      # параметр меняли руками — пример больше не выбран
+        if not self.applying:
             self.check_preset(None)
 
     def tween_step(self):
-        """Один кадр плавного перехода: значения на картинке чуть ближе к новым."""
         now = self.clock.elapsed()
         for key, (a, b, start, log, duration) in list(self.tweens.items()):
             t = min((now - start) / duration, 1.0)
             e = ease(t)
-            # на логарифмической шкале (δλ) переход тоже идёт по логарифму
             self.shown[key] = a * (b / a) ** e if log and a > 0 and b > 0 else a + (b - a) * e
             if t >= 1.0:
                 self.shown[key] = b
@@ -433,7 +403,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.recalc()
 
     def schedule(self, *args):
-        """Параметр изменился — пересчёт через 15 мс, если он ещё не запланирован."""
         if not self.timer.isActive():
             self.timer.start()
 
@@ -449,14 +418,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.schedule()
 
     def check_preset(self, values):
-        """Подсветить кнопку выбранного примера (None — снять подсветку со всех)."""
         self.preset_group.setExclusive(False)
         for button, v, _ in self.preset_buttons:
             button.setChecked(v is values)
         self.preset_group.setExclusive(True)
 
     def apply_preset(self, values, dlam):
-        """Готовый пример: параметры плавно переходят к новым значениям."""
         self.applying = True
         for key, value in values.items():
             self.params[key].set(value, smooth=True)
@@ -470,7 +437,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def toggle_scan(self):
         if self.scan_timer.isActive():
             self.scan_timer.stop()
-            self.params["dd"].set(self.shown["dd"])     # поле и картина совпадают
+            self.params["dd"].set(self.shown["dd"])
         else:
             self.tweens.pop("dd", None)
             self.scan_timer.start()
@@ -480,19 +447,16 @@ class MainWindow(QtWidgets.QMainWindow):
         self.scan_button.setText("■  Остановить" if self.scan_timer.isActive() else "▶  Двигать зеркало")
 
     def scan_step(self):
-        """Кадр анимации микросдвига: примерно одно новое кольцо за 1,7 секунды."""
         lam, n = self.shown["lam"], self.shown["n"]
         end = seamless_shift(lam, n, self.params["dd"].hi)
         value = self.shown["dd"] + lam / (2 * n) / 56
         if value > end:
-            value -= end                           # по кругу без скачка картинки
+            value -= end
         self.shown["dd"] = value
         self.params["dd"].display(value)
         self.recalc()
 
-    # --- главный расчёт ---
     def effective(self):
-        """Значения для физики: видимые из полей или скрытые из варианта лабораторной работы."""
         v = dict(self.shown)
         if self.lab is not None:
             v["lam"], v["A"] = self.lab.lam, self.lab.A
@@ -501,17 +465,15 @@ class MainWindow(QtWidgets.QMainWindow):
         return v
 
     def recalc(self):
-        """Берём параметры, считаем физику, обновляем графики и таблицу."""
         self.timer.stop()
         v = self.effective()
-        lam = v["lam"] * 1e-9                      # нм → м
-        d = v["d"] * 1e-3 + v["dd"] * 1e-9         # зазор вместе с микросдвигом, м
+        lam = v["lam"] * 1e-9
+        d = v["d"] * 1e-3 + v["dd"] * 1e-9
         R, n = v["R"], v["n"]
-        A = min(v["A"], 1 - R)                     # зеркало не может отразить и поглотить больше 100 %
+        A = min(v["A"], 1 - R)
         f, half = v["f"] * 1e-3, v["screen"] * 1e-3
-        # экран: вне лабораторной стоит точно в фокусе (L = f), в лабораторной его ставит студент
         L = v["L"] * 1e-3 if self.lab is not None else f
-        rho = defocus_radius(L, f)                 # радиус кружка расфокусировки на экране
+        rho = defocus_radius(L, f)
         two = self.second.isChecked()
         lam2 = lam + v["dlam"] * 1e-12
         th = theory(lam, d, n, R, f, A)
@@ -524,17 +486,13 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             self.lam2_label.setText(f"λ₂ = {num(lam2 * 1e9, 9)} нм")
 
-        # 1. Измерения по графику T(λ): по полтора Δλ слева и справа от λ₁,
-        #    не меньше 30 точек на ширину пика (это десятки тысяч точек, не больше).
         x = lam + np.linspace(-1.5 * fsr, 1.5 * fsr, curve_samples(3 * fsr, th["width"], fsr))
         T = airy(phase(x, d, n), F, tmax)
         meas = measure_curve(x, T, lam)
         self.curve = (x, T)
-        # а сам график рисуется по формуле — точно при любом масштабе (см. Plot.draw_curve)
         lo, hi = -1.5 * fsr, (lam2 - lam if two else 0.0) + 1.5 * fsr
         self.show_transmission(lam, lam2 if two else None, lo, hi, meas, d, n, F, tmax, hidden)
 
-        # 2. Кольца: картинка считается по формуле прямо в виджете
         lines = [(lam, "λ₁")] + ([(lam2, "λ₂")] if two else [])
         caption = f"экран ⌀ {short(round(2 * v['screen'], 1))} мм · f = {short(round(v['f']))} мм"
         if self.lab is not None:
@@ -543,22 +501,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ring_view.show_data([(wl, wavelength_rgb(wl * 1e9)) for wl, _ in lines], half, caption,
                                  (d, n, L), F, tmax, rho)
 
-        # 3. Радиусы колец: по картинке (максимумы яркости) и по формуле
-        measured, near = measure_rings(lam, d, n, L, half, F, tmax)   # «кольцо» в центре не считаем
+        measured, near = measure_rings(lam, d, n, L, half, F, tmax)
         predicted = ring_radii(lam, d, n, L, half)
         predicted = predicted[predicted > near]
         self.radii = (measured, predicted)
         marks = [] if self.lab is not None else [
             (rk * 1e3, THEME["muted"], label) for rk, label in zip(measured[:2], ("r₁", "r₂"))]
-        # разрез: у каждой линии своя кривая своего цвета; две линии делят свет пополам
         share = len(lines)
 
         def sin_out(x_mm):
             r = x_mm * 1e-3
-            return r / np.hypot(r, L)              # tg θ = r / L
+            return r / np.hypot(r, L)
 
         def ring_curve(wl, name):
-            if rho > 0:                            # экран не в фокусе: среднее по кружку расфокусировки
+            if rho > 0:
                 def value(x_mm):
                     r = np.asarray(x_mm, dtype=float) * 1e-3
                     return screen_mean(np.maximum(r - rho, 0.0), r + rho, wl, d, n, L, F, tmax) / share
@@ -582,14 +538,9 @@ class MainWindow(QtWidgets.QMainWindow):
         kind, text = self.verdict_text(two, lam2 - lam, th)
         self.verdict.setText(text)
         if self.verdict.property("kind") != kind:
-            polish(self.verdict, kind)             # цвет подложки: серый, зелёный или красный
+            polish(self.verdict, kind)
 
     def sum_curve(self, curves):
-        """Суммарная яркость двух линий на разрезе — по ней видно, различимы ли кольца.
-
-        Наибольшее и наименьшее значение суммы в столбце ищутся по 9 точкам столбца;
-        чтобы узкий пик одной из линий не потерялся, верх не ниже верха каждой из линий.
-        """
         def value(x):
             return sum(c.value(x) for c in curves)
 
@@ -602,14 +553,13 @@ class MainWindow(QtWidgets.QMainWindow):
         return Curve(value, span, THEME["text"], "сумма")
 
     def show_transmission(self, lam, lam2, lo, hi, meas, d, n, F, tmax, hidden):
-        """График T(λ): по оси — отступ от λ₁; метки линий и измерения Δλ и w."""
         unit, scale = ("нм", 1e-9) if hi - lo >= 2e-9 else ("пм", 1e-12)
         color = line_color(lam * 1e9)
         marks = [(0.0, color, "λ₁")]
         if lam2 is not None and not hidden:
             marks.append(((lam2 - lam) / scale, line_color(lam2 * 1e9), "λ₂"))
         spans = []
-        if self.lab is None:                       # в лабораторной измеряет сам студент
+        if self.lab is None:
             if meas["peaks"]:
                 a, b = meas["peaks"]
                 spans.append(((a - lam) / scale, (b - lam) / scale, 1.07, f"Δλ = {length(meas['fsr'])}"))
@@ -622,7 +572,6 @@ class MainWindow(QtWidgets.QMainWindow):
                               [curve], marks, spans)
 
     def fill_table(self, lam, th, meas, measured, predicted):
-        """Таблица: что намерено по графикам и что дают формулы."""
         f_unit, f_scale = pick_unit(th["fsr"])
         w_unit, w_scale = pick_unit(th["width"] or th["fsr"])
         m_fsr, m_w = meas["fsr"], meas["width"]
@@ -630,7 +579,6 @@ class MainWindow(QtWidgets.QMainWindow):
         r1t, r2t = (list(predicted[:2]) + [None, None])[:2]
         dr2 = (r2m ** 2 - r1m ** 2) * 1e6 if r2m is not None else None
         top = float(self.curve[1].max()) if self.curve[1].size else None
-        # название, по графику, по формуле, единица, подсказка с формулой
         self.results = [
             ("Порядок в центре m₀", None, th["m0"], "",
              "m₀ = 2nd/λ — сколько длин волн укладывается в путь туда и обратно"),
@@ -675,8 +623,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 elif j == 2:
                     item.setForeground(QBrush(THEME.color("muted")))
         if not self.tweens and not self.scan_timer.isActive():
-            self.table.resizeRowsToContents()      # высота строк — только когда картина стоит
-        # плитки над таблицей: крупно — по графику, мелко — по формуле и расхождение
+            self.table.resizeRowsToContents()
         rows = {name: (got, expect, unit) for name, got, expect, unit, _ in self.results}
         for (name, _), (value, note, badge) in zip(TILES, self.tiles):
             got, expect, unit = rows[name]
@@ -694,8 +641,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 polish(badge, kind)
 
     def verdict_text(self, two, dlam, th):
-        """Вывод о второй линии: различает ли её прибор. Возвращает (вид, текст),
-        вид — «info» (подсказка), «ok» (различимы) или «bad» (не различимы)."""
         w, fsr = th["width"], th["fsr"]
         if th["tmax"] <= 0:
             return "bad", "R + A ≥ 1: зеркала отражают и поглощают весь свет, через прибор ничего не проходит."
@@ -708,7 +653,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if dlam > fsr - w:
             return "bad", (f"δλ = {length(dlam)} близко к Δλ = {length(fsr)} или больше: кольца λ₂ ложатся "
                            "на соседние кольца λ₁ (перекрытие порядков), линии путаются.")
-        # критерий, аналогичный Рэлею: провал между линиями не выше 0,81 от максимума
         dip = dip_ratio(dlam % fsr, fsr, th["F"])
         if dip > RAYLEIGH:
             return "bad", (f"Провал между линиями {num(dip, 2)} от максимума — больше {num(RAYLEIGH, 2)}: "
@@ -716,9 +660,7 @@ class MainWindow(QtWidgets.QMainWindow):
         return "ok", (f"Провал между линиями {num(dip, 2)} от максимума — не больше {num(RAYLEIGH, 2)}: "
                       f"линии различимы, кольца двойные (δλ = {length(dlam)}, w = {length(w)}).")
 
-    # --- лабораторная работа ---
     def context(self):
-        """Текущие параметры для журнала (мм, нм, пм). Скрытые в лабораторной — None."""
         v = self.shown
         hidden_dlam = self.lab is not None and self.unknown_doublet.isChecked()
         return {"d": v["d"], "R": v["R"], "n": v["n"], "f": v["f"], "dd": v["dd"],
@@ -739,16 +681,13 @@ class MainWindow(QtWidgets.QMainWindow):
             if dialog.fresh.isChecked():
                 self.journal.clear_all()
             self.set_lab(Variant(dialog.code.value()))
-            # экран сначала не в фокусе — студент сам находит положение, где кольца резкие
             self.params["L"].set(self.params["f"].value() + 20.0)
 
     def set_lab(self, variant):
-        """Включить (Variant) или выключить (None) режим лабораторной работы."""
         self.lab = variant
         on = variant is not None
         for key in ("lam", "A"):
             self.params[key].set_hidden(on)
-        # в лаборатории линза — из набора, а экран (расстояние L) нужно поставить в фокус самому
         self.params["f"].use_choices(LENSES if on else None)
         self.params["L"].set_row_visible(on)
         self.presets_box.setEnabled(not on)
@@ -757,7 +696,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.unknown_doublet.setChecked(False)
         self.page_buttons[0].setEnabled(not on)
         self.show_page(1 if on else 0)
-        self.header_buttons[3].setEnabled(not on)          # «Копировать» таблицу программы
+        self.header_buttons[3].setEnabled(not on)
         if on:
             who = ", ".join(x for x in self.student if x) or "студент"
             self.lab_badge.setText(f"Лабораторная · вариант {variant.code}")
@@ -796,7 +735,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_journal(self):
         self.settings.setValue("journal", self.journal.to_json())
 
-    # --- тема, справка, полноэкранный режим ---
     def apply_theme(self):
         app = QtWidgets.QApplication.instance()
         app.setPalette(qt_palette())
@@ -812,7 +750,7 @@ class MainWindow(QtWidgets.QMainWindow):
         for label in (self.verdict,) + tuple(badge for _, _, badge in self.tiles):
             polish(label, label.property("kind") or "none")
         if self.ready:
-            self.recalc()                          # цвета кривых зависят от темы
+            self.recalc()
 
     def toggle_theme(self):
         THEME.set("light" if THEME.dark else "dark")
@@ -842,7 +780,6 @@ class MainWindow(QtWidgets.QMainWindow):
             "Ctrl+E — таблица CSV    Ctrl+Shift+C — копировать таблицу\n"
             "Пробел — анимация зеркала    Ctrl+T — тема    F11 — во весь экран"))
 
-    # --- сохранение ---
     def save_png(self):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Сохранить снимок окна", "fabry-perot.png",
                                                         "Картинка PNG (*.png)")
@@ -850,7 +787,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.write_png(path)
 
     def write_png(self, path):
-        """Снимок всего окна: параметры, графики, кольца и таблица."""
         if not path.lower().endswith(".png"):
             path += ".png"
         if self.centralWidget().grab().save(path, "PNG"):
@@ -865,7 +801,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self.write_rings(path)
 
     def write_rings(self, path, side=2048):
-        """Картина колец крупно, для отчёта: side × side пикселей на тёмном фоне."""
         if not path.lower().endswith(".png"):
             path += ".png"
         image = QImage(side, side, QImage.Format.Format_ARGB32)
@@ -885,11 +820,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.write_csv(path)
 
     def write_csv(self, path):
-        """Таблица для Excel: параметры, измерения, радиусы колец и точки графика T(λ)."""
         if not path.lower().endswith(".csv"):
             path += ".csv"
         try:
-            # utf-8-sig и «;» — чтобы русский Excel сразу открыл файл без «кракозябр»
             with open(path, "w", newline="", encoding="utf-8-sig") as file:
                 out = csv.writer(file, delimiter=";")
                 if self.lab is not None:
@@ -913,7 +846,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 out.writerow([])
                 out.writerow(["λ, нм", "Пропускание T"])
                 x, T = self.curve
-                step = max(1, len(x) // 20000)     # не больше примерно 20 000 строк
+                step = max(1, len(x) // 20000)
                 for a, b in zip(x[::step], T[::step]):
                     out.writerow([f"{a * 1e9:.6f}".replace(".", ","), plain(b)])
                 journal = self.journal.csv_rows()
@@ -928,7 +861,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.statusBar().showMessage(f"Таблица сохранена: {path}", 6000)
 
     def write_lab_csv(self, out):
-        """CSV в лабораторной: кто, вариант, видимые параметры и журнал (скрытых величин нет)."""
         out.writerow(["Лабораторная работа «Интерферометр Фабри — Перо»"])
         out.writerow(["Студент", self.student[0]])
         out.writerow(["Группа", self.student[1]])
@@ -938,16 +870,13 @@ class MainWindow(QtWidgets.QMainWindow):
             out.writerow(row)
 
     def copy_table(self):
-        """Таблица в буфер обмена через табуляцию — вставляется в Excel и Word как таблица."""
         lines = ["Величина\tПо графику\tПо формуле"]
         for name, got, expect, unit, _ in self.results:
             lines.append(f"{name}\t{with_unit(got, unit)}\t{with_unit(expect, unit)}")
         QtWidgets.QApplication.clipboard().setText("\n".join(lines))
         self.statusBar().showMessage("Таблица скопирована в буфер обмена", 4000)
 
-    # --- настройки между запусками ---
     def restore(self):
-        """Вернуть параметры, тему и размер окна с прошлого запуска (или первый пример)."""
         s = self.settings
         THEME.set(s.value("theme", "dark"))
         self.apply_theme()
@@ -971,7 +900,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.journal.load_json(s.value("journal", ""))
         self.student = (s.value("lab/name", "") or "", s.value("lab/group", "") or "")
         code = int(s.value("lab/code", 0) or 0)
-        if code in CODES:                          # незавершённая лабораторная продолжается
+        if code in CODES:
             self.unknown_doublet.setChecked(s.value("lab/doublet", False, type=bool))
             self.ready = True
             self.set_lab(Variant(code))
@@ -998,8 +927,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
 class LabDialog(QtWidgets.QDialog):
-    """Начало лабораторной работы: кто выполняет и какой вариант."""
-
     def __init__(self, parent, name="", group=""):
         super().__init__(parent)
         self.setWindowTitle("Лабораторная работа")

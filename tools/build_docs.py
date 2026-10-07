@@ -1,27 +1,3 @@
-"""Сборка методичек: docs/src/*.html → docs/*.pdf.
-
-Запуск:  python tools/build_docs.py            (всё)
-         python tools/build_docs.py lab        (только файлы, в имени которых есть «lab»)
-         python tools/build_docs.py --no-shots (не переснимать окно программы)
-
-Что делает:
-  1. Снимает окно программы (tools/docs_shots.py) → docs/img/*.png.
-  2. В шаблонах docs/src/*.html заменяет особые метки:
-       <eq n="1">LaTeX</eq>        — выключная формула с номером (1);
-       <eq>LaTeX</eq>              — выключная формула без номера;
-       $LaTeX$                     — формула в строке;
-       <code ref="physics.airy"/>  — настоящий текст функции из программы
-                                     (атрибут nodoc — без строки документации,
-                                     lines="3-10" — только эти строки);
-       <fig name="scheme"/>        — рисунок SVG из tools/docs_figures.py;
-       <py name="answers_hidden"/> — таблица или текст, посчитанные tools/docs_tables.py.
-     Формулы переводятся в MathML — его Chromium рисует сам, без интернета.
-     Код берётся прямо из fabry_perot/*.py, поэтому методичка не расходится с программой.
-  3. Печатает страницы в PDF через Chromium (Playwright).
-
-Нужно: pip install playwright latex2mathml pygments; шрифты Liberation и Latin Modern Math.
-"""
-
 import ast
 import glob
 import html
@@ -37,21 +13,16 @@ OUT = os.path.join(ROOT, "docs")
 BUILD = os.path.join(ROOT, "docs", "build")
 sys.path.insert(0, os.path.join(ROOT, "tools"))
 
-from latex2mathml.converter import convert  # noqa: E402
-from pygments import highlight  # noqa: E402
-from pygments.formatters import HtmlFormatter  # noqa: E402
-from pygments.lexers import PythonLexer  # noqa: E402
+from latex2mathml.converter import convert
+from pygments import highlight
+from pygments.formatters import HtmlFormatter
+from pygments.lexers import PythonLexer
 
-import docs_figures  # noqa: E402
-import docs_tables  # noqa: E402
+import docs_figures
+import docs_tables
 
-
-# ---------------------------------------------------------------------------
-#  Фрагменты кода из программы
-# ---------------------------------------------------------------------------
 
 def find_node(tree, names):
-    """Найти функцию или класс по пути «Класс.метод» в дереве модуля."""
     body = tree.body
     node = None
     for name in names:
@@ -98,10 +69,6 @@ def code_block(match):
             f'<pre>{body}</pre></figure>')
 
 
-# ---------------------------------------------------------------------------
-#  Формулы
-# ---------------------------------------------------------------------------
-
 def mathml(latex, display=False):
     latex = latex.replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&")
     return convert(latex.strip(), display="block" if display else "inline")
@@ -118,10 +85,6 @@ def inline_math(text):
     return re.sub(r"(?<!\\)\$(.+?)(?<!\\)\$", lambda m: mathml(m.group(1)), text, flags=re.S)
 
 
-# ---------------------------------------------------------------------------
-#  Сборка
-# ---------------------------------------------------------------------------
-
 def figure(match):
     name = re.search(r'name="([^"]+)"', match.group(0)).group(1)
     return f'<div class="svgfig">{docs_figures.FIGURES[name]()}</div>'
@@ -129,7 +92,6 @@ def figure(match):
 
 def render_template(path):
     text = open(path, encoding="utf-8").read()
-    # 0. Готовые блоки, посчитанные программой (ответы, образец обработки): внутри них тоже бывают формулы
     text = re.sub(r'<py\s+name="([^"]+)"\s*/>', lambda m: docs_tables.TABLES[m.group(1)](), text)
     protected = []
 
@@ -145,7 +107,6 @@ def render_template(path):
     text = re.sub(r"\x00(\d+)\x00", lambda m: protected[int(m.group(1))], text)
     style = open(os.path.join(SRC, "style.css"), encoding="utf-8").read()
     style += HtmlFormatter(style="friendly").get_style_defs("figure.code pre")
-    # общий стиль — в начало: собственные стили страницы (например, альбомная ориентация) его перекрывают
     return text.replace("<head>", f"<head><style>{style}</style>", 1)
 
 

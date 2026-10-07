@@ -256,7 +256,7 @@ Qt сам вызывает их, когда происходит событие 
 <h3>Замыкания</h3>
 <p>Функция, определённая внутри другой функции, видит переменные внешней — даже после того, как внешняя закончилась.
 Это называется <b>замыкание</b>.</p>
-<code ref="window.MainWindow.recalc" lines="51-75" caption="fabry_perot/window.py — recalc (фрагмент): кривые разреза колец"/>
+<code ref="window.MainWindow.recalc" lines="44-67" caption="fabry_perot/window.py — recalc (фрагмент): кривые разреза колец"/>
 <p>Здесь <span class="mono">value</span> и <span class="mono">span</span> пользуются переменными <span class="mono">d, n, L, F, tmax, rho,
 share, wl</span> из <span class="mono">recalc</span>. Функции «уносят» эти значения с собой в объект
 <span class="mono">Curve</span>, и график потом вызывает их, когда нужно нарисовать кривую при любом масштабе.</p>

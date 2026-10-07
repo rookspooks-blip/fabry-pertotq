@@ -1,8 +1,3 @@
-"""Снимки окна программы для методичек (запускается без экрана, QT_QPA_PLATFORM=offscreen).
-
-Результат — картинки в docs/img/. Вызывается из tools/build_docs.py.
-"""
-
 import os
 import sys
 import tempfile
@@ -11,15 +6,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from fabry_perot.qt import QtCore, QtWidgets, QColor, QFont, QPainter, QPen, QPointF, QRectF, Qt  # noqa: E402
+from fabry_perot.qt import QtCore, QtWidgets, QColor, QFont, QPainter, QPen, QPointF, QRectF, Qt
 
-# настройки программы — во временной папке, чтобы не зависеть от прошлых запусков
 QtCore.QSettings.setPath(QtCore.QSettings.Format.IniFormat, QtCore.QSettings.Scope.UserScope, tempfile.mkdtemp())
 
-from fabry_perot.app import create_app  # noqa: E402
-from fabry_perot.params import PRESETS  # noqa: E402
-from fabry_perot.theme import THEME  # noqa: E402
-from fabry_perot.window import MainWindow  # noqa: E402
+from fabry_perot.app import create_app
+from fabry_perot.params import PRESETS
+from fabry_perot.theme import THEME
+from fabry_perot.window import MainWindow
 
 OUT = os.path.join(ROOT, "docs", "img")
 
@@ -31,7 +25,6 @@ def wait(ms):
 
 
 def settle(win):
-    """Дождаться конца плавных переходов и перерисовки."""
     wait(1100)
     win.recalc()
     QtWidgets.QApplication.processEvents()
@@ -44,7 +37,6 @@ def rect_in(win, widget):
 
 
 def callouts(image, marks):
-    """Номера-кружки поверх снимка: marks — [(номер, точка)]."""
     p = QPainter(image)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
     font = QFont("Liberation Sans")
@@ -71,7 +63,6 @@ def main():
     win.apply_preset(PRESETS[0][1], PRESETS[0][2])
     settle(win)
 
-    # 1. Окно целиком с номерами частей (светлая тема — для печати)
     image = win.grab().toImage()
     side = win.centralWidget().layout().itemAt(1).widget().widget(0).widget()
     cards = [c for c in side.findChildren(QtWidgets.QFrame) if c.objectName() == "card"]
@@ -93,8 +84,7 @@ def main():
     callouts(image, marks)
     image.save(os.path.join(OUT, "window_light.png"))
 
-    # 2. Измерение курсором: увеличенный пик и перекрестие на половине высоты
-    xa, xb = win.plot_t.spans[1][:2]               # ширина пика на половине высоты
+    xa, xb = win.plot_t.spans[1][:2]
     (f0, f1), c, w = win.plot_t.full, (xa + xb) / 2, xb - xa
     win.plot_t.zoom = ((c - 4 * w - f0) / (f1 - f0), (c + 4 * w - f0) / (f1 - f0))
     win.plot_t.set_hover(xa)
@@ -104,7 +94,6 @@ def main():
     win.plot_t.zoom = None
     win.plot_t.set_hover(None)
 
-    # 3. Кольца с курсором и связанный разрез
     win.ring_view.set_hover(3.003)
     win.plot_r.set_hover(3.003)
     QtWidgets.QApplication.processEvents()
@@ -113,14 +102,12 @@ def main():
     win.ring_view.set_hover(None)
     win.plot_r.set_hover(None)
 
-    # 4. Кольца при разном отражении зеркал
     for R in (0.5, 0.9, 0.98):
         win.params["R"].set(R)
         win.shown["R"] = R
         win.recalc()
         win.write_rings(os.path.join(OUT, f"rings_R{int(R * 100)}.png"), side=520)
 
-    # 5. Натриевый дублет: различимы и не различимы
     win.apply_preset(PRESETS[1][1], PRESETS[1][2])
     settle(win)
     win.write_rings(os.path.join(OUT, "doublet_resolved.png"), side=520)
@@ -129,7 +116,6 @@ def main():
     win.recalc()
     win.write_rings(os.path.join(OUT, "doublet_merged.png"), side=520)
 
-    # 6. Режим лабораторной работы: журнал с серией «кольца» (вариант 0 — его нет среди выдаваемых)
     from fabry_perot.lab import Variant
     from fabry_perot import physics as ph
     import random
@@ -175,7 +161,6 @@ def main():
     image.save(os.path.join(OUT, "window_lab.png"))
     win.journal.grab().save(os.path.join(OUT, "journal.png"))
 
-    # 7. Лупа на кольцах
     win.ring_view.scale, win.ring_view.center = 6.0, (float(radii[4]) * 1e-3, 0.0)
     win.ring_view.image = None
     win.ring_view.set_hover(float(radii[4]))
@@ -185,7 +170,6 @@ def main():
     win.ring_view.image = None
     win.set_lab(None)
 
-    # 8. Две линии: суммарная кривая и провал между ними
     win.apply_preset(dict(lam=589.0, d=1.0, dd=0.0, R=0.9, A=0.0, n=1.0, f=200.0, screen=10.0), 6.2)
     settle(win)
     win.plot_r.zoom = (0.30, 0.42)
@@ -195,7 +179,6 @@ def main():
     win.plot_r.grab().save(os.path.join(OUT, "profile_sum.png"))
     win.plot_r.zoom = None
 
-    # 9. Тёмная тема целиком (для методички по визуальной части)
     THEME.set("dark")
     win.apply_theme()
     win.resize(1600, 960)

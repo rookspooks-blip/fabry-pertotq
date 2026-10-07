@@ -1,9 +1,3 @@
-"""Таблицы для методичек, посчитанные той же физикой, что и программа.
-
-Ответы преподавателю (по всем кодам вариантов), образец обработки и т. п.
-Вставляются в шаблоны меткой <py name="…"/> (см. tools/build_docs.py).
-"""
-
 import math
 import os
 import random
@@ -13,17 +7,16 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fabry_perot import lab  # noqa: E402
-from fabry_perot import physics as ph  # noqa: E402
+from fabry_perot import lab
+from fabry_perot import physics as ph
 
-TASK2_D = (1.0, 2.0, 3.0, 5.0, 8.0, 12.0)          # мм
+TASK2_D = (1.0, 2.0, 3.0, 5.0, 8.0, 12.0)
 TASK3_R = (0.5, 0.7, 0.8, 0.9, 0.95, 0.98)
 TASK6_R = (0.8, 0.9, 0.95)
 TASK7_R = (0.9, 0.95)
 
 
 def f(value, digits=4):
-    """Число по-русски с digits значащими цифрами."""
     if value is None or not math.isfinite(value):
         return "—"
     if value == 0:
@@ -34,7 +27,6 @@ def f(value, digits=4):
 
 
 def peak_and_width(F, tmax=1.0):
-    """Высота пика и ширина на половине высоты (по фазе) — численно, как меряет студент."""
     x = np.linspace(-np.pi, np.pi, 400001)
     T = ph.airy(x, F, tmax)
     top = T.max()
@@ -43,11 +35,10 @@ def peak_and_width(F, tmax=1.0):
 
 
 def expected(code):
-    """Ожидаемые результаты варианта (n = 1, экран в фокусе)."""
     v = lab.Variant(code)
     lam = v.lam * 1e-9
     out = {"v": v}
-    out["fsr"] = [lam ** 2 / (2 * d * 1e-3) * 1e12 for d in TASK2_D]           # пм
+    out["fsr"] = [lam ** 2 / (2 * d * 1e-3) * 1e12 for d in TASK2_D]
     d5 = 5e-3
     fsr5 = lam ** 2 / (2 * d5) * 1e12
     widths = []
@@ -59,12 +50,12 @@ def expected(code):
     out["width"] = widths
     r = ph.ring_radii(lam, v.d_rings * 1e-3, 1.0, v.f_rings * 1e-3, 0.010)[:6] * 1e3
     out["rings"] = r
-    out["slope"] = (v.f_rings * 1e-3) ** 2 * lam / (v.d_rings * 1e-3) * 1e6    # мм²
+    out["slope"] = (v.f_rings * 1e-3) ** 2 * lam / (v.d_rings * 1e-3) * 1e6
     m0 = 2 * d5 / lam
     first = (math.ceil(m0) - m0) * lam / 2 * 1e9
     out["shift"] = [first + k * v.lam / 2 for k in range(3) if first + k * v.lam / 2 <= 1000]
     lam2 = lam + v.dlam * 1e-12
-    out["dstar"] = lam * lam2 / (2 * (lam2 - lam)) * 1e3                           # мм
+    out["dstar"] = lam * lam2 / (2 * (lam2 - lam)) * 1e3
     res = []
     for R in TASK6_R:
         F = ph.coefficient_f(R)
@@ -128,7 +119,6 @@ def answers_tasks_367():
 
 
 def example_rings():
-    """Образец обработки задания 4: вариант 0 (его нет среди выдаваемых), «измерения» с разбросом."""
     v = lab.Variant(0)
     lam = v.lam * 1e-9
     r_true = ph.ring_radii(lam, v.d_rings * 1e-3, 1.0, v.f_rings * 1e-3, 0.010)[:6] * 1e3
@@ -146,7 +136,7 @@ def example_rings():
                 "Таблица П1<b>Измеренные радиусы колец и площади зон (пример)</b>", "blank")
     rel = err / value
     exp = math.floor(math.log10(err))
-    if err / 10 ** exp < 2:                        # первая цифра 1 — оставляем две значащие
+    if err / 10 ** exp < 2:
         exp -= 1
     err_r, val_r = round(err, -exp), round(value, -exp)
     dec = max(-exp, 0)

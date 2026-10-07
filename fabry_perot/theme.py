@@ -1,36 +1,28 @@
-"""Оформление: тёмная и светлая темы, цвет света, значки.
-
-Все виджеты берут цвета из общего объекта THEME во время рисования, поэтому
-смена темы — это смена палитры, таблицы стилей и перерисовка окна.
-"""
-
 import math
 
 from .qt import QBrush, QColor, QIcon, QImage, QPainter, QPalette, QPen, QPixmap, QPointF, QRadialGradient, QRectF, Qt
 
-# Бирюзовый и оранжевый — фирменные цвета СЭЛФ. Для каждой темы свой оттенок,
-# чтобы цвета одинаково хорошо читались на тёмном и на светлом фоне.
 DARK = {
     "name": "dark",
-    "bg": "#0A0F16",         # фон окна
-    "surface": "#111923",    # карточки
-    "raised": "#172230",     # поля ввода, наведение
-    "border": "#1F2B3A",     # рамки карточек
-    "line": "#2A3A4E",       # рамки полей, дорожка ползунка
-    "text": "#E7EDF4",       # основной текст
-    "muted": "#8795A8",      # подписи, пределы
-    "faint": "#5B6A7D",      # совсем второстепенное
-    "grid": "#18222F",       # сетка графиков
-    "axis": "#2E3D50",       # оси графиков
-    "accent": "#35D0BA",     # бирюзовый
+    "bg": "#0A0F16",
+    "surface": "#111923",
+    "raised": "#172230",
+    "border": "#1F2B3A",
+    "line": "#2A3A4E",
+    "text": "#E7EDF4",
+    "muted": "#8795A8",
+    "faint": "#5B6A7D",
+    "grid": "#18222F",
+    "axis": "#2E3D50",
+    "accent": "#35D0BA",
     "accent_hover": "#5BE0CD",
     "accent_text": "#04211C",
-    "orange": "#FFA54A",     # измерения на графиках
-    "ok": ("#0F2E29", "#5EE3C9", "#1D5A50"),     # фон, текст и рамка подложки «различимы»
+    "orange": "#FFA54A",
+    "ok": ("#0F2E29", "#5EE3C9", "#1D5A50"),
     "bad": ("#33161A", "#FF8A8A", "#6A2A31"),
     "warn": ("#332812", "#FFC56B", "#6A5020"),
     "info": ("#152131", "#A9B8CB", "#24344A"),
-    "glow": True,            # кривые на графиках светятся
+    "glow": True,
 }
 LIGHT = {
     "name": "light",
@@ -54,15 +46,12 @@ LIGHT = {
     "info": ("#EDF1F5", "#43505F", "#DEE4EB"),
     "glow": False,
 }
-SCREEN_BG = "#05080C"    # экран с кольцами тёмный в обеих темах — кольца видны как в опыте
+SCREEN_BG = "#05080C"
 FONTS = ["Segoe UI", "SF Pro Text", ".AppleSystemUIFont", "Helvetica Neue",
          "Inter", "Ubuntu", "Cantarell", "Noto Sans", "DejaVu Sans"]
 
 
 class Theme:
-    """Текущая палитра. Виджеты берут цвета отсюда во время рисования, поэтому
-    смена темы — это смена палитры, таблицы стилей и перерисовка окна."""
-
     def __init__(self):
         self.p = DARK
 
@@ -91,7 +80,6 @@ THEME = Theme()
 
 
 def stylesheet():
-    """Оформление всех элементов окна (язык стилей Qt похож на CSS веб-страниц)."""
     p = THEME.p
     return f"""
 QWidget {{ color: {p['text']}; font-size: 13px; }}
@@ -177,7 +165,6 @@ QComboBox QAbstractItemView {{ background: {p['surface']}; border: 1px solid {p[
 
 
 def qt_palette():
-    """Палитра Qt под текущую тему — для стандартных окон (сохранение файла, сообщения)."""
     pal = QPalette()
     roles = QPalette.ColorRole
     for role, key in ((roles.Window, "surface"), (roles.WindowText, "text"), (roles.Base, "raised"),
@@ -190,7 +177,6 @@ def qt_palette():
 
 
 def wavelength_rgb(nm):
-    """Примерный цвет света с длиной волны nm (кусочно-линейная схема Брутона), 0…1."""
     if nm < 440:
         r, g, b = (440 - nm) / 60, 0.0, 1.0
     elif nm < 490:
@@ -203,7 +189,6 @@ def wavelength_rgb(nm):
         r, g, b = 1.0, (645 - nm) / 65, 0.0
     else:
         r, g, b = 1.0, 0.0, 0.0
-    # у краёв видимого диапазона глаз чувствует свет хуже — цвет тусклее
     if nm < 420:
         k = 0.3 + 0.7 * (nm - 380) / 40
     elif nm > 700:
@@ -214,25 +199,19 @@ def wavelength_rgb(nm):
 
 
 def line_color(nm):
-    """Цвет кривой на графике: оттенок самого света, подогнанный под фон темы.
-
-    На тёмном фоне тусклые фиолетовые и тёмно-красные цвета осветляются,
-    на светлом — яркие жёлто-зелёные затемняются, чтобы кривая читалась.
-    """
     r, g, b = wavelength_rgb(nm)
     k = max(r, g, b) or 1.0
-    c = QColor.fromRgbF(r / k, g / k, b / k)       # тот же оттенок на полной яркости
+    c = QColor.fromRgbF(r / k, g / k, b / k)
     h, s, light = max(c.hslHueF(), 0.0), c.hslSaturationF(), c.lightnessF()
     if THEME.dark:
         light = max(light, 0.62)
     else:
-        yellowish = max(0.0, 1 - abs(h - 0.17) / 0.12)    # жёлтый на белом виден хуже всего
+        yellowish = max(0.0, 1 - abs(h - 0.17) / 0.12)
         light = min(light, 0.42 - 0.12 * yellowish)
     return QColor.fromHslF(h, min(s, 0.95), light).name()
 
 
 def spectrum_gradient():
-    """Градиент радуги 380…780 нм для дорожки ползунка длины волны."""
     stops = []
     for i in range(21):
         t = i / 20
@@ -242,7 +221,6 @@ def spectrum_gradient():
 
 
 def dot_icon(colors, size=12):
-    """Значок из одного-двух цветных кружков — цвета линий готового примера."""
     ratio = 3
     d = size * ratio
     pix = QPixmap(int(d * (1 + 0.65 * (len(colors) - 1))) + 2, d + 2)
@@ -259,7 +237,6 @@ def dot_icon(colors, size=12):
 
 
 def app_icon_image(size=512):
-    """Значок программы: светящиеся интерференционные кольца на тёмном фоне."""
     img = QImage(size, size, QImage.Format.Format_ARGB32_Premultiplied)
     img.fill(Qt.GlobalColor.transparent)
     p = QPainter(img)
@@ -271,7 +248,6 @@ def app_icon_image(size=512):
     p.setPen(QPen(QColor("#2A3A4E"), size * 0.012))
     p.setBrush(QBrush(grad))
     p.drawRoundedRect(QRectF(size * 0.04, size * 0.04, size * 0.92, size * 0.92), size * 0.22, size * 0.22)
-    # радиусы как у настоящей картины колец (r ∝ √k), цвета от бирюзового к красному
     for k, color in enumerate(["#35D0BA", "#6FE0B0", "#C8E86A", "#FFD166", "#FF9F4A", "#FF5A5A"]):
         r = size * 0.075 + size * 0.13 * math.sqrt(k + 0.15)
         glow = QColor(color)

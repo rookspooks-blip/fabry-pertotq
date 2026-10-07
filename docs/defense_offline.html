@@ -8,15 +8,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Spectral:ital,wght@0,500;0,600;1,400;1,500&display=swap">
-<style>/* Конспект-тренажёр: одна колонка для чтения, сверху липкая панель поиска и самопроверки, внизу словарь. */
-:root {
+<style>:root {
   --bg: #f2f3f6;
   --paper: #ffffff;
   --ink: #1a1e29;
   --muted: #586174;
   --line: #dadfe7;
-  --accent: #3a3fbf;      /* индиго: ссылки, интерференция */
-  --laser: #b8232b;       /* красный He-Ne 632,8 нм: «коротко» */
+  --accent: #3a3fbf;
+  --laser: #b8232b;
   --known: #1f7a5a;
   --flash: #fff0b3;
   --chip: #eceef5;
@@ -50,7 +49,6 @@ p { margin: 0.4em 0; }
 .intro { color: var(--muted); max-width: 65ch; }
 .lead { color: var(--muted); margin: 0.2em 0 1em; }
 
-/* панель */
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 14px;
   align-items: center; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); margin-block: 16px; }
 .bar input[type=search] { flex: 1 1 14rem; min-width: 0; font: inherit; padding: 7px 12px; border-radius: 8px;
@@ -58,7 +56,6 @@ p { margin: 0.4em 0; }
 .sw { display: inline-flex; gap: 6px; align-items: center; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
 .prog { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
 
-/* кто ты */
 .chooser { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-top: 20px; }
 .chooser h2 { font-size: 1.25rem; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 8px; }
@@ -73,7 +70,6 @@ p { margin: 0.4em 0; }
 .who { font: 500 0.75rem var(--f-body); color: var(--muted); background: var(--chip); border-radius: 999px; padding: 1px 9px; }
 .who[data-who="Общие"] { color: var(--laser); }
 
-/* оглавление */
 .toc { margin-bottom: 28px; }
 .toc h2 { font-size: 1.1rem; }
 .toc ol { margin: 0.4em 0; padding-left: 1.4em; columns: 2 16rem; column-gap: 2rem; }
@@ -82,7 +78,6 @@ p { margin: 0.4em 0; }
 .tocg { font-size: 0.95rem; }
 a { color: var(--accent); }
 
-/* вопросы */
 .qs { margin: 40px 0 0; scroll-margin-top: 80px; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0;
   scroll-margin-top: 90px; }
@@ -109,7 +104,6 @@ body.quiz .card:not(.shown) .reveal { display: inline-block; }
 .card ol, .card ul { padding-left: 1.4em; margin: 0.3em 0; }
 .card li { margin: 0.2em 0; }
 
-/* формулы и ссылки */
 .f { font-family: var(--f-display); font-style: italic; font-size: 1.05em; overflow-wrap: anywhere; }
 .fb { display: block; font-family: var(--f-display); font-style: italic; font-size: 1.08em; margin: 0.5em 0;
   padding: 6px 12px; background: var(--chip); border-radius: 6px; overflow-x: auto; }
@@ -123,7 +117,6 @@ table.cmp td, table.cmp th { border: 1px solid var(--line); padding: 5px 8px; te
 table.cmp th { background: var(--chip); }
 .ans table.cmp { display: block; overflow-x: auto; }
 
-/* числа */
 .tblw { overflow-x: auto; }
 table.nums { border-collapse: collapse; width: 100%; background: var(--paper); border: 1px solid var(--line);
   border-radius: 10px; font-variant-numeric: tabular-nums; }
@@ -131,7 +124,6 @@ table.nums td { padding: 7px 12px; border-top: 1px solid var(--line); vertical-a
 table.nums tr:first-child td { border-top: 0; }
 table.nums td:first-child { color: var(--muted); width: 45%; }
 
-/* словарь */
 .glossary { margin-top: 56px; border-top: 2px solid var(--ink); padding-top: 8px; }
 .gl { margin-top: 28px; scroll-margin-top: 80px; }
 .entries { display: grid; gap: 10px; }
@@ -193,7 +185,7 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
 <button class="back float" id="floatback" type="button" hidden>↩ назад</button>
 <script>(function () {
   "use strict";
-  const stack = [];                                  // откуда пришли: id ссылок по порядку
+  const stack = [];
   const floatBack = document.getElementById("floatback");
   const KEY = "fp-defense-known";
   let known = new Set();
@@ -203,7 +195,7 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
   let who = "";
   try { who = localStorage.getItem(WHO) || ""; } catch (e) { who = ""; }
 
-  function save() { try { localStorage.setItem(KEY, JSON.stringify([...known])); } catch (e) { /* без памяти */ } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify([...known])); } catch (e) {  } }
 
   function flash(el) {
     if (!el) return;
@@ -212,10 +204,10 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
     el.classList.add("flash");
   }
 
-  function reveal(el) {                              // показать ответ, если он спрятан режимом проверки
+  function reveal(el) {
     const card = el && el.closest(".card");
     if (card) card.classList.add("shown");
-    let sec = el && el.closest("[data-hide]");          // чужой вопрос из словаря: открыть его и раздел
+    let sec = el && el.closest("[data-hide]");
     while (sec) { sec.removeAttribute("data-hide"); sec = sec.closest("[data-hide]"); }
   }
 
@@ -228,7 +220,6 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
 
   function updateBack() { floatBack.hidden = stack.length === 0; }
 
-  // переход по ссылке в словарь или к вопросу: запоминаем, откуда ушли
   document.addEventListener("click", function (ev) {
     const a = ev.target.closest("a.g, a.jump");
     if (!a) return;
@@ -240,7 +231,7 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
     stack.push(a.id);
     updateBack();
     go(target);
-    try { history.replaceState(null, "", "#" + id); } catch (e) { /* не важно */ }
+    try { history.replaceState(null, "", "#" + id); } catch (e) {  }
   });
 
   function back() {
@@ -253,7 +244,6 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
   }
   document.querySelectorAll("button.back").forEach(b => b.addEventListener("click", back));
 
-  // «Знаю»
   const cards = [...document.querySelectorAll(".card")];
   const prog = document.getElementById("prog");
   function paint() {
@@ -275,14 +265,12 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
     b.closest(".card").classList.add("shown");
   }));
 
-  // режим проверки
   const quiz = document.getElementById("quiz");
   quiz.addEventListener("change", function () {
     document.body.classList.toggle("quiz", quiz.checked);
     cards.forEach(c => c.classList.remove("shown"));
   });
 
-  // поиск и «только невыученные»
   const find = document.getElementById("find");
   const unknownOnly = document.getElementById("unknown");
   function mine(c) { return !who || c.dataset.owner === who || c.dataset.owner === "Общие"; }
@@ -293,7 +281,7 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
       const ok = !unknownOnly.checked || !known.has(c.dataset.q);
       if (hit && ok && mine(c)) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
     });
-    // разделы без видимых вопросов прячем, в оглавлении — сколько осталось
+
     document.querySelectorAll("section[data-sec]").forEach(s => {
       const n = s.querySelectorAll(".card:not([data-hide])").length;
       const li = document.querySelector('.toc li[data-sec="' + s.dataset.sec + '"]');
@@ -311,10 +299,9 @@ code { font-family: var(--f-mono); font-size: 0.86em; background: var(--chip); p
   find.addEventListener("input", filter);
   unknownOnly.addEventListener("change", filter);
 
-  // кто ты: Артём / Егор / Илья / все
   function choose(name) {
     who = name || "";
-    try { localStorage.setItem(WHO, who); } catch (e) { /* без памяти */ }
+    try { localStorage.setItem(WHO, who); } catch (e) {  }
     document.querySelectorAll(".pick").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === who ? "true" : "false"));
     document.querySelectorAll(".plan").forEach(p => { p.hidden = p.dataset.plan !== who; });
     document.body.dataset.who = who;

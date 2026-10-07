@@ -1,9 +1,3 @@
-"""Рисунки для методичек в формате SVG (вектор — чётко при печати).
-
-Графики строятся по тем же формулам, что и в программе (fabry_perot.physics),
-поэтому рисунки в методичках всегда совпадают с моделью.
-"""
-
 import math
 import os
 import sys
@@ -12,7 +6,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fabry_perot import physics as ph  # noqa: E402
+from fabry_perot import physics as ph
 
 INK = "#1b1f24"
 GRAY = "#7a838c"
@@ -57,8 +51,6 @@ def polyline(xs, ys, color=INK, width=1.6, dash=None, fill="none"):
 
 
 class Axes:
-    """Простые оси: перевод координат графика в точки рисунка, деления, подписи."""
-
     def __init__(self, x, y, w, h, xlim, ylim):
         self.x, self.y, self.w, self.h = x, y, w, h
         self.xlim, self.ylim = xlim, ylim
@@ -103,30 +95,21 @@ def num(v, digits=2):
     return s.replace(".", ",").replace("-", "−")
 
 
-# ---------------------------------------------------------------------------
-#  Лабораторная работа
-# ---------------------------------------------------------------------------
-
 def scheme():
-    """Рис. 1. Схема: источник, интерферометр, линза, экран в фокальной плоскости."""
     W, H = 760, 330
     b = []
-    # источник: протяжённый, светящаяся полоса
     b.append('<rect x="30" y="80" width="18" height="170" rx="4" fill="#fde7c7" stroke="#b86b12"/>')
     b.append(text(39, 272, "S", 15, italic=True))
-    # рассеиватель
     b.append('<rect x="90" y="80" width="6" height="170" fill="#e8ecef" stroke="#7a838c"/>')
     b.append(text(93, 272, "Р", 13))
-    # пластины интерферометра
     px1, px2 = 250, 330
     for px, side in ((px1, 1), (px2, -1)):
         b.append(f'<rect x="{px - (22 if side == 1 else 0)}" y="60" width="22" height="210" fill="#e3f1ef" '
                  f'stroke="#5b8f88"/>')
-        b.append(line(px, 60, px, 270, ACCENT, 3))       # зеркальное покрытие на внутренней стороне
+        b.append(line(px, 60, px, 270, ACCENT, 3))
     b.append(line(px1, 290, px2, 290, INK, 1, extra='marker-start="url(#ar)" marker-end="url(#ar)"'))
     b.append(text((px1 + px2) / 2, 308, "d", 15, italic=True))
     b.append(text((px1 + px2) / 2, 48, "ИФП", 13))
-    # наклонный пучок под углом θ
     ang = math.radians(9)
     rays = []
     for k in range(4):
@@ -137,18 +120,14 @@ def scheme():
     lens_x, screen_x = 560, 720
     focus_y = 165 + (screen_x - lens_x) * math.tan(ang)
     for k, (xs, ys) in enumerate(rays):
-        # до интерферометра, внутри, после — одна прямая (толщиной пластин пренебрегаем на схеме)
         y_lens = ys + (lens_x - xs) * math.tan(ang)
         b.append(line(xs, ys, lens_x, y_lens, "#d9660b" if k == 1 else "#e3a15c", 1.3))
         b.append(line(lens_x, y_lens, screen_x, focus_y, "#d9660b" if k == 1 else "#e3a15c", 1.3))
-    # ось
     b.append(line(20, 165, 745, 165, GRAY, 0.8, dash="6 4"))
-    # линза
     b.append(f'<ellipse cx="{lens_x}" cy="165" rx="11" ry="110" fill="#eef4fb" stroke="#5a7896"/>')
     b.append(text(lens_x, 298, "Л", 14))
     b.append(line(lens_x, 312, screen_x, 312, INK, 1, extra='marker-start="url(#ar)" marker-end="url(#ar)"'))
     b.append(text((lens_x + screen_x) / 2, 326, "f", 15, italic=True))
-    # экран
     b.append(line(screen_x, 50, screen_x, 280, INK, 3))
     b.append(text(screen_x + 4, 42, "Э", 14))
     b.append(f'<circle cx="{screen_x}" cy="{focus_y:.1f}" r="3.5" fill="{ORANGE}"/>')
@@ -156,7 +135,6 @@ def scheme():
     b.append(line(screen_x + 18, 165, screen_x + 18, focus_y, INK, 1,
                   extra='marker-start="url(#ar)" marker-end="url(#ar)"'))
     b.append(text(screen_x + 24, (165 + focus_y) / 2 + 5, "r", 15, "start", italic=True))
-    # угол θ у линзы
     b.append(f'<path d="M {lens_x - 90} 165 A 90 90 0 0 1 {lens_x - 90 * math.cos(ang) + 0.5:.1f} '
              f'{165 - 90 * math.sin(ang) + 14.2:.1f}" fill="none" stroke="{INK}" stroke-width="1"/>')
     b.append(text(lens_x - 105, 158, "θ", 15, italic=True))
@@ -164,17 +142,15 @@ def scheme():
 
 
 def beams():
-    """Рис. 2. Многократные отражения в зазоре и выходящие лучи."""
     W, H = 640, 300
     b = []
-    x1, x2 = 250, 370                      # внутренние поверхности зеркал
+    x1, x2 = 250, 370
     b.append(f'<rect x="{x1 - 26}" y="30" width="26" height="250" fill="#e3f1ef" stroke="#5b8f88"/>')
     b.append(f'<rect x="{x2}" y="30" width="26" height="250" fill="#e3f1ef" stroke="#5b8f88"/>')
     b.append(line(x1, 30, x1, 280, ACCENT, 3))
     b.append(line(x2, 30, x2, 280, ACCENT, 3))
     ang = math.radians(13)
     dy = (x2 - x1) * math.tan(ang)
-    # падающий луч
     y = 50.0
     b.append(line(60, y - (x1 - 60) * math.tan(ang), x1, y, INK, 1.6, extra='marker-end="url(#ar)"'))
     b.append(text(70, 34, "E₀", 15, "start", italic=True))
@@ -190,7 +166,6 @@ def beams():
         xs.append(nx)
         ys.append(ny)
         if right:
-            # выходящий луч
             b.append(line(nx, ny, nx + 170, ny + 170 * math.tan(ang), ORANGE, 1.4 if k < 3 else 1,
                           extra='marker-end="url(#ar)"' if k < 3 else ""))
             if k < 4:
@@ -203,14 +178,12 @@ def beams():
     b.append(text((x1 + x2) / 2, 290 - 4, "d", 15, italic=True))
     b.append(text(x1 - 13, 20, "1", 13))
     b.append(text(x2 + 13, 20, "2", 13))
-    # угол θ′ у первого отражения
     b.append(line(x1, 50, x1 + 60, 50, GRAY, 0.8, dash="4 3"))
     b.append(text(x1 + 50, 66, "θ′", 14, italic=True))
     return svg(W, H, "".join(b))
 
 
 def airy_family():
-    """Рис. 3. Функция пропускания T(δ) при разных R."""
     W, H = 710, 300
     ax = Axes(70, 30, 500, 210, (-3 * math.pi, 3 * math.pi), (0, 1.1))
     b = [ax.frame([(v * math.pi, lab) for v, lab in
@@ -221,14 +194,13 @@ def airy_family():
                                         (0.9, None, "R = 0,9"))):
         T = ph.airy(d, ph.coefficient_f(R))
         b.append(ax.curve(d, T, dash=dash, width=1.7))
-        ly = 22 + 18 * i                           # легенда справа сверху
+        ly = 22 + 18 * i
         b.append(line(598, ly, 628, ly, INK, 1.7, dash))
         b.append(text(634, ly + 4, lab, 13, "start"))
     return svg(W, H, "".join(b))
 
 
 def peak_measures():
-    """Рис. 4. Расстояние между пиками Δλ и ширина пика w."""
     W, H = 640, 290
     R = 0.8
     F = ph.coefficient_f(R)
@@ -255,7 +227,6 @@ def peak_measures():
 
 
 def rings_linear():
-    """Рис. 7. Примерный вид зависимости r² от номера кольца k."""
     lam, d, n, f = 632.8e-9, 5e-3, 1.0, 0.2
     r = ph.ring_radii(lam, d, n, f, 0.01)[:6] * 1e3
     k = np.arange(1, len(r) + 1)
@@ -269,7 +240,6 @@ def rings_linear():
     b.append(ax.curve(kk, icpt + slope * kk, width=1.2, color=GRAY))
     for a, c in zip(k, r2):
         b.append(f'<circle cx="{float(ax.X(a)):.1f}" cy="{float(ax.Y(c)):.1f}" r="4" fill="{INK}"/>')
-    # треугольник для наклона
     k1, k2 = 2, 5
     y1, y2 = icpt + slope * k1, icpt + slope * k2
     b.append(line(float(ax.X(k1)), float(ax.Y(y1)), float(ax.X(k2)), float(ax.Y(y1)), ACCENT, 1.2, dash="4 3"))
@@ -281,10 +251,9 @@ def rings_linear():
 
 
 def resolution():
-    """Рис. 8. Сумма двух близких линий при δλ = 2w, w и w/2."""
     R = 0.9
     F = ph.coefficient_f(R)
-    halfw = 2 * math.asin(1 / math.sqrt(F))       # полуширина по фазе
+    halfw = 2 * math.asin(1 / math.sqrt(F))
     W, H = 720, 200
     b = []
     for i, (mult, lab) in enumerate(((2.0, "δλ = 2w"), (1.0, "δλ = w"), (0.5, "δλ = w/2"))):
@@ -303,7 +272,6 @@ def resolution():
 
 
 def shift_linear():
-    """Рис. 9. Примерный вид зависимости сдвига зеркала Δd_N от числа N новых колец."""
     lam = 632.8
     N = np.arange(1, 4)
     d0 = 60.0
@@ -319,10 +287,6 @@ def shift_linear():
     return svg(W, H, "".join(b))
 
 
-# ---------------------------------------------------------------------------
-#  Методички по коду
-# ---------------------------------------------------------------------------
-
 def box(x, y, w, h, title, sub="", fill="#f3f6f8", stroke="#5b6b78"):
     out = f'<rect x="{x}" y="{y}" width="{w}" height="{h}" rx="8" fill="{fill}" stroke="{stroke}"/>'
     out += text(x + w / 2, y + (h / 2 + 5 if not sub else 22), title, 14, weight="bold")
@@ -337,7 +301,6 @@ def arrow(x1, y1, x2, y2, color=INK, dash=None):
 
 
 def modules():
-    """Схема модулей программы."""
     W, H = 760, 380
     b = []
     b.append(box(300, 10, 160, 50, "run.py", "", "#ffffff"))
@@ -368,7 +331,6 @@ def modules():
 
 
 def pipeline():
-    """Путь данных при изменении параметра."""
     W, H = 760, 250
     b = []
     xs = [10, 160, 310, 460, 610]
@@ -388,7 +350,6 @@ def pipeline():
 
 
 def parabola():
-    """Уточнение положения пика параболой по трём точкам."""
     W, H = 520, 250
     ax = Axes(50, 20, 420, 190, (-1.6, 2.4), (0.3, 1.1))
     b = [ax.frame([(-1, "i−1"), (0, "i"), (1, "i+1")], [], "x", "y", grid=False)]
@@ -416,7 +377,6 @@ def parabola():
 
 
 def columns():
-    """Рисование по столбцам: наибольшее и наименьшее значение в столбце пикселей."""
     W, H = 700, 270
     R = 0.95
     F = ph.coefficient_f(R)
@@ -440,7 +400,6 @@ def columns():
 
 
 def antiderivative():
-    """Первообразная функции Эйри: ступеньки по 2π/√(1+F) за период."""
     W, H = 620, 320
     F = ph.coefficient_f(0.8)
     q = math.sqrt(1 + F)
@@ -457,7 +416,6 @@ def antiderivative():
 
 
 def ease_curve():
-    """Кривая плавного перехода ease-in-out."""
     W, H = 420, 260
     ax = Axes(60, 20, 320, 190, (0, 1), (0, 1))
     b = [ax.frame([(0, "0"), (0.5, "0,5"), (1, "1")], [(0, "0"), (0.5, "0,5"), (1, "1")], "t", "e(t)")]
@@ -472,7 +430,6 @@ def ease_curve():
 
 
 def layout():
-    """Раскладка окна."""
     W, H = 720, 360
     b = ['<rect x="5" y="5" width="710" height="350" rx="10" fill="#f7f9fa" stroke="#5b6b78"/>']
     b.append(box(15, 15, 690, 40, "Шапка: значок, название, кнопки сохранения, тема, справка", "", "#ffffff"))
@@ -486,7 +443,6 @@ def layout():
 
 
 def raster():
-    """Как закрашивается пиксель линии: доля пикселя внутри полоски."""
     W, H = 720, 250
     b = []
     x0, y0, cell = 30, 20, 30
@@ -515,7 +471,6 @@ def raster():
 
 
 def mmgrid():
-    """Миллиметровая сетка для графика в бланке отчёта (170 × 105 мм)."""
     W, H = 170, 105
     b = [f'<rect x="0" y="0" width="{W}" height="{H}" fill="white" stroke="#d98c5f" stroke-width="0.35"/>']
     for i in range(W + 1):

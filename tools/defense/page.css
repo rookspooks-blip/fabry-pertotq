@@ -1,12 +1,11 @@
-/* Конспект-тренажёр: одна колонка для чтения, сверху липкая панель поиска и самопроверки, внизу словарь. */
 :root {
   --bg: #f2f3f6;
   --paper: #ffffff;
   --ink: #1a1e29;
   --muted: #586174;
   --line: #dadfe7;
-  --accent: #3a3fbf;      /* индиго: ссылки, интерференция */
-  --laser: #b8232b;       /* красный He-Ne 632,8 нм: «коротко» */
+  --accent: #3a3fbf;
+  --laser: #b8232b;
   --known: #1f7a5a;
   --flash: #fff0b3;
   --chip: #eceef5;
@@ -40,7 +39,6 @@ p { margin: 0.4em 0; }
 .intro { color: var(--muted); max-width: 65ch; }
 .lead { color: var(--muted); margin: 0.2em 0 1em; }
 
-/* панель */
 .bar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; gap: 8px 14px;
   align-items: center; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); margin-block: 16px; }
 .bar input[type=search] { flex: 1 1 14rem; min-width: 0; font: inherit; padding: 7px 12px; border-radius: 8px;
@@ -48,7 +46,6 @@ p { margin: 0.4em 0; }
 .sw { display: inline-flex; gap: 6px; align-items: center; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
 .prog { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
 
-/* кто ты */
 .chooser { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-top: 20px; }
 .chooser h2 { font-size: 1.25rem; }
 .picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 8px; }
@@ -63,7 +60,6 @@ p { margin: 0.4em 0; }
 .who { font: 500 0.75rem var(--f-body); color: var(--muted); background: var(--chip); border-radius: 999px; padding: 1px 9px; }
 .who[data-who="Общие"] { color: var(--laser); }
 
-/* оглавление */
 .toc { margin-bottom: 28px; }
 .toc h2 { font-size: 1.1rem; }
 .toc ol { margin: 0.4em 0; padding-left: 1.4em; columns: 2 16rem; column-gap: 2rem; }
@@ -72,7 +68,6 @@ p { margin: 0.4em 0; }
 .tocg { font-size: 0.95rem; }
 a { color: var(--accent); }
 
-/* вопросы */
 .qs { margin: 40px 0 0; scroll-margin-top: 80px; }
 .card { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin: 12px 0;
   scroll-margin-top: 90px; }
@@ -99,7 +94,6 @@ body.quiz .card:not(.shown) .reveal { display: inline-block; }
 .card ol, .card ul { padding-left: 1.4em; margin: 0.3em 0; }
 .card li { margin: 0.2em 0; }
 
-/* формулы и ссылки */
 .f { font-family: var(--f-display); font-style: italic; font-size: 1.05em; overflow-wrap: anywhere; }
 .fb { display: block; font-family: var(--f-display); font-style: italic; font-size: 1.08em; margin: 0.5em 0;
   padding: 6px 12px; background: var(--chip); border-radius: 6px; overflow-x: auto; }
@@ -113,7 +107,6 @@ table.cmp td, table.cmp th { border: 1px solid var(--line); padding: 5px 8px; te
 table.cmp th { background: var(--chip); }
 .ans table.cmp { display: block; overflow-x: auto; }
 
-/* числа */
 .tblw { overflow-x: auto; }
 table.nums { border-collapse: collapse; width: 100%; background: var(--paper); border: 1px solid var(--line);
   border-radius: 10px; font-variant-numeric: tabular-nums; }
@@ -121,7 +114,6 @@ table.nums td { padding: 7px 12px; border-top: 1px solid var(--line); vertical-a
 table.nums tr:first-child td { border-top: 0; }
 table.nums td:first-child { color: var(--muted); width: 45%; }
 
-/* словарь */
 .glossary { margin-top: 56px; border-top: 2px solid var(--ink); padding-top: 8px; }
 .gl { margin-top: 28px; scroll-margin-top: 80px; }
 .entries { display: grid; gap: 10px; }

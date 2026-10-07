@@ -1,8 +1,3 @@
-"""Собирает docs/defense.html — подготовка к защите со словарём и переходами туда-обратно.
-
-Запуск:  python tools/defense/build.py
-"""
-
 import html
 import os
 import re
@@ -12,28 +7,25 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
-import glossary  # noqa: E402
-import owners  # noqa: E402
-import q1  # noqa: E402,F401
-import q2  # noqa: E402,F401
-import q3  # noqa: E402,F401
-from qbase import SECTIONS  # noqa: E402
+import glossary
+import owners
+import q1
+import q2
+import q3
+from qbase import SECTIONS
 
 GL = {e["key"]: e for e in glossary.ENTRIES}
 for i, e in enumerate(glossary.ENTRIES, 1):
     e["id"] = f"g{i}"
-    e["uses"] = []                                   # (id блока, подпись) — где встречается
+    e["uses"] = []
 
 LINK = re.compile(r"\{([^{}|]+)(?:\|([^{}]*))?\}")
 counter = [0]
 missing = set()
 
 
-# --- автоматические ссылки на буквы ---------------------------------------
-# сочетания с подстрочными индексами (через теги) — целиком
 TAGGED = [("δλ<sub>min</sub>", "δλmin"), ("T<sub>max</sub>", "Tmax"), ("T<sub>min</sub>", "Tmin"),
           ("σ<sub>b</sub>", "σb"), ("r<sub>k+1</sub>", "rₖ"), ("r<sub>k</sub>", "rₖ")]
-# буквы и обозначения без тегов — длинные сначала
 TOKENS = ["Δd₀", "Δλ", "Δν", "Δd", "δλ", "δ½", "θ′", "m₀", "m₁", "d*", "λ₁", "λ₂", "x̄", "𝓕", "𝒜", "𝑛", "𝑁",
           "λ", "δ", "θ", "ε", "ρ", "ν"]
 LATIN = set("dnRAFfLDrkmSNTIEcw")
@@ -43,7 +35,6 @@ TOK_RE = re.compile("|".join(re.escape(x) for x in TOKENS) + r"|Δ(?![A-Za-zα-�
 
 
 def autolink(text, own=None):
-    """Каждую букву-обозначение превратить в {ключ|буква} (кроме уже размеченных мест и тегов)."""
     for raw, key in TAGGED:
         if key != own:
             text = text.replace(raw, "{" + key + "|" + raw + "}")
@@ -65,7 +56,6 @@ def autolink(text, own=None):
 
 
 def render(text, where, label, own=None):
-    """Разметка: ⟦формула⟧, ⟪формула отдельной строкой⟫, {ключ} и {ключ|текст} — ссылки в словарь."""
     text = autolink(text, own)
     text = text.replace("⟪", '<span class="fb">').replace("⟫", "</span>")
     text = text.replace("⟦", '<span class="f">').replace("⟧", "</span>")
@@ -89,10 +79,9 @@ def para(text, where, label):
     return text if text.lstrip().startswith(("<ol", "<table", "<ul")) else f"<p>{text}</p>"
 
 
-# --- вопросы ---------------------------------------------------------------
 num = 0
 toc, body = [], []
-mine = {name: [] for name in owners.ROLES}          # номера вопросов каждого (без общих)
+mine = {name: [] for name in owners.ROLES}
 for s in SECTIONS:
     toc.append(f'<li data-sec="s-{s["key"]}"><a class="jump" href="#s-{s["key"]}">{html.escape(s["title"])}</a>'
                f' <span class="cnt">{len(s["items"])}</span></li>')
@@ -122,7 +111,6 @@ for s in SECTIONS:
     body.append(f'<section class="qs" id="s-{s["key"]}" data-sec="s-{s["key"]}"><h2>{html.escape(s["title"])}</h2>'
                 f'<p class="lead">{html.escape(s["lead"])}</p>{"".join(cards)}</section>')
 
-# --- словарь ---------------------------------------------------------------
 gl_html = []
 for kind, title, lead in (("sym", "Буквы и обозначения", "Что значит каждая буква в формулах."),
                           ("term", "Термины", "Физика, оптика, обработка данных, программирование."),
@@ -232,7 +220,6 @@ page = f"""<title>Защита: интерферометр Фабри — Пер
 out = os.path.join(ROOT, "docs", "defense.html")
 with open(out, "w", encoding="utf-8") as fh:
     fh.write(page)
-# автономная копия для телефона/планшета: без явной кодировки просмотрщики показывают кракозябры
 head, rest = page.split("<div class=\"wrap\">", 1)
 offline = ('<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
            '<meta name="viewport" content="width=device-width, initial-scale=1">\n'

@@ -1,9 +1,3 @@
-"""Журнал измерений: серии точек по заданиям, прямая по методу наименьших квадратов, итог с погрешностью.
-
-Точки записываются правым щелчком по графику T(λ), по картине колец или разрезу,
-а для серий «по параметру» — кнопкой «Записать». Журнал сохраняется между запусками.
-"""
-
 import json
 import math
 
@@ -17,35 +11,31 @@ from .widgets import Curve, Plot, card_title
 
 
 def pm(value, error, unit, digits=4):
-    """Запись «значение ± погрешность единица» по-русски."""
     if error is None or not math.isfinite(error) or error == 0:
         return f"{num(value, digits)} {unit}".strip()
     return f"({num(value, digits)} ± {num(error, 2)}) {unit}".strip()
 
 
 class Journal(QtWidgets.QWidget):
-    """Журнал: выбор серии, таблица точек, график с прямой, результат."""
-
-    changed = Signal()                             # данные изменились — окно сохранит журнал
+    changed = Signal()
 
     def __init__(self, context, notify):
         super().__init__()
-        self.context = context                     # функция: текущие параметры окна (скрытые — None)
-        self.notify = notify                       # функция: сообщение в строке состояния
+        self.context = context
+        self.notify = notify
         self.data = {s.key: [] for s in SERIES}
-        self.extra = {}                            # подсказки варианта к сериям (d, f и т. п.)
-        self.pending = None                        # первая точка пары (для Δλ и w)
+        self.extra = {}
+        self.pending = None
 
         column = QtWidgets.QVBoxLayout(self)
         column.setContentsMargins(0, 0, 0, 0)
         column.setSpacing(8)
         column.addWidget(card_title("Журнал измерений"))
-        self.owner = QtWidgets.QLabel()            # кто выполняет лабораторную (видно и на снимке)
+        self.owner = QtWidgets.QLabel()
         self.owner.setObjectName("owner")
         self.owner.setWordWrap(True)
         column.addWidget(self.owner)
         self.combo = QtWidgets.QComboBox()
-        # ширина списка не зависит от длины названий серий — окно помещается на экране 1366 точек
         self.combo.setSizeAdjustPolicy(QtWidgets.QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.combo.setMinimumContentsLength(18)
         for s in SERIES:
@@ -95,12 +85,10 @@ class Journal(QtWidgets.QWidget):
         column.addWidget(self.result)
         self.series_changed()
 
-    # --- серии ---
     def series(self):
         return BY_KEY[self.combo.currentData()]
 
     def set_extra(self, extra):
-        """Подсказки варианта: {ключ серии: текст}."""
         self.extra = dict(extra)
         self.series_changed()
 
@@ -117,7 +105,6 @@ class Journal(QtWidgets.QWidget):
         self.record_button.setEnabled(s.kind == "param")
         self.refresh()
 
-    # --- запись точек ---
     def add(self, x, y, note=""):
         ctx = self.context()
         self.data[self.series().key].append(
@@ -128,7 +115,6 @@ class Journal(QtWidgets.QWidget):
         self.notify(f"Записано в журнал: {self.series().ylabel.split(',')[0]} = {num(float(y), 5)}")
 
     def plot_pick(self, x, unit, y):
-        """Правый щелчок по графику T(λ): x — отступ от λ₁ в единицах оси (нм или пм), y — показание T."""
         s = self.series()
         x_pm = x * 1000.0 if unit == "нм" else x
         if s.kind == "pair":
@@ -151,7 +137,6 @@ class Journal(QtWidgets.QWidget):
                                                      else "кнопкой «Записать»."))
 
     def ring_pick(self, r_mm, bright):
-        """Правый щелчок по кольцам или разрезу: радиус, мм, и яркость."""
         s = self.series()
         if s.kind == "ring":
             k = len(self.data[s.key]) + 1
@@ -193,7 +178,6 @@ class Journal(QtWidgets.QWidget):
             self.refresh()
             self.changed.emit()
 
-    # --- обработка ---
     def fit(self, key):
         s = BY_KEY[key]
         rows = self.data[key]
@@ -202,7 +186,6 @@ class Journal(QtWidgets.QWidget):
         return fit_line([r["x"] for r in rows], [r["y"] for r in rows], s.through_origin)
 
     def known_lambda(self):
-        """Длина волны для расчётов: лучший результат серий (кольца, сдвиг, Δλ) или видимое λ."""
         best = None
         for key in ("rings", "shift", "fsr"):
             rows = self.data[key]
@@ -287,7 +270,6 @@ class Journal(QtWidgets.QWidget):
                     self.table.setItem(i, j, item)
                 item.setText(text)
         self.result.setText(self.result_text(s.key))
-        # график серии: точки и прямая МНК
         xs = [r["x"] for r in rows]
         ys = [r["y"] for r in rows]
         if xs:
@@ -315,7 +297,6 @@ class Journal(QtWidgets.QWidget):
         self.plot.ylabel = s.ylabel
         self.plot.show_data(s.xlabel, "", xlim, ylim, curves, points=list(zip(xs, ys)))
 
-    # --- сохранение ---
     def to_json(self):
         return json.dumps(self.data, ensure_ascii=False)
 
@@ -335,7 +316,6 @@ class Journal(QtWidgets.QWidget):
         self.changed.emit()
 
     def csv_rows(self):
-        """Строки для CSV: все непустые серии с результатами (без HTML)."""
         out = []
         for s in SERIES:
             rows = self.data[s.key]

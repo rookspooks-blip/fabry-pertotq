@@ -1,5 +1,3 @@
-"""Проверки режима лабораторной работы: варианты, МНК, обработка серий."""
-
 import math
 
 import numpy as np
@@ -13,7 +11,7 @@ def test_variants_are_stable_and_different():
     a, b = lab.Variant(7), lab.Variant(7)
     assert (a.lam, a.dlam, a.A, a.d_rings, a.f_rings) == (b.lam, b.dlam, b.A, b.d_rings, b.f_rings)
     lams = {lab.Variant(c).lam for c in lab.CODES}
-    assert len(lams) == len(lab.CODES)                 # у всех вариантов разные длины волн
+    assert len(lams) == len(lab.CODES)
     for c in lab.CODES:
         v = lab.Variant(c)
         assert 450 <= v.lam <= 690 and 300 <= v.dlam <= 900 and 0 < v.A <= 0.01
@@ -34,7 +32,6 @@ def test_fit_line_exact_and_errors():
 
 
 def test_wavelength_from_ideal_series():
-    """По идеальным «измерениям» обработка возвращает ту же длину волны."""
     v = lab.Variant(3)
     lam, n = v.lam * 1e-9, 1.0
     params = {"n": n, "d": v.d_rings, "f": v.f_rings}
@@ -51,12 +48,10 @@ def test_wavelength_from_ideal_series():
 
 
 def test_defocus_keeps_ring_positions():
-    """Расфокусировка размывает кольца, но в фокусе (L = f) радиус кружка равен нулю."""
     assert ph.defocus_radius(0.2, 0.2) == 0
     assert ph.defocus_radius(0.21, 0.2) == pytest.approx(ph.APERTURE / 2 * 0.01 / 0.2)
     lam, d, f = 600e-9, 3e-3, 0.2
     r = ph.ring_radii(lam, d, 1.0, f, 0.01)[2]
-    # среднее по узкому окну вокруг кольца — почти максимум, по широкому — меньше
     F = ph.coefficient_f(0.9)
     narrow = ph.screen_mean(r - 1e-6, r + 1e-6, lam, d, 1.0, f, F)
     wide = ph.screen_mean(r - 1e-4, r + 1e-4, lam, d, 1.0, f, F)

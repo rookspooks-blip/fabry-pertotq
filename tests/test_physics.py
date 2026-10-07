@@ -1,5 +1,3 @@
-"""Проверки физики: формулы против прямого сложения лучей и измерений по графикам."""
-
 import math
 
 import numpy as np
@@ -11,7 +9,6 @@ LAM, D, N, F_LENS = 632.8e-9, 5e-3, 1.0, 0.2
 
 
 def test_airy_matches_sum_of_beams():
-    """Функция Эйри совпадает с прямым сложением многократно отражённых лучей."""
     R, A = 0.9, 0.01
     delta = np.linspace(0, 4 * np.pi, 2001)
     t = 1 - R - A
@@ -47,13 +44,11 @@ def test_losses_lower_peaks():
 
 
 def test_ring_radii_are_bright():
-    """На радиусах колец по формуле пропускание максимально (порядок — целое число)."""
     radii = ph.ring_radii(LAM, D, N, F_LENS, 0.01)
     assert len(radii) == 19
     for r in radii:
         m = ph.order_at(r, LAM, D, N, F_LENS)
         assert m == pytest.approx(round(m), abs=1e-6)
-    # r₂² − r₁² ≈ f²nλ/d при малых углах
     th = ph.theory(LAM, D, N, 0.9, F_LENS)
     assert radii[1] ** 2 - radii[0] ** 2 == pytest.approx(th["dr2"], rel=1e-3)
 
@@ -65,7 +60,6 @@ def test_seamless_shift_is_multiple_of_half_wave():
 
 
 def test_airy_mean_matches_dense_average():
-    """Точное среднее по первообразной совпадает с усреднением по миллиону точек."""
     F = ph.coefficient_f(0.95)
     for a, b in [(1e5 + 0.1, 1e5 + 7.3), (2e6, 2e6 - 5.5), (3.0, 3.0 + 1e-3), (10.0, 10.0 + 1e-12)]:
         x = np.linspace(a, b, 1_000_001)
@@ -75,7 +69,6 @@ def test_airy_mean_matches_dense_average():
 
 
 def test_airy_range_contains_every_sample():
-    """Наименьшее и наибольшее значение на отрезке охватывают все точки внутри него."""
     F = ph.coefficient_f(0.99)
     edges = np.linspace(1e5, 1e5 + 40, 201)
     lo, hi = ph.airy_range(edges, F)
@@ -83,7 +76,6 @@ def test_airy_range_contains_every_sample():
     col = np.minimum(((x - edges[0]) / (edges[1] - edges[0])).astype(int), 199)
     T = ph.airy(x, F)
     assert np.all(T >= lo[col] - 1e-12) and np.all(T <= hi[col] + 1e-12)
-    # и пики действительно доходят до 1 там, где они есть
     assert hi.max() == 1.0
 
 
@@ -97,7 +89,6 @@ def test_measured_rings_match_formula():
 
 
 def test_many_thin_rings_are_all_found():
-    """Даже десятки тысяч очень тонких колец считаются все — ни одно не пропадает."""
     lam, d, n, f, half = 380e-9, 0.02, 2.0, 0.05, 0.1
     measured, near = ph.measure_rings(lam, d, n, f, half, ph.coefficient_f(0.99), 1.0)
     predicted = ph.ring_radii(lam, d, n, f, half, limit=10 ** 6)

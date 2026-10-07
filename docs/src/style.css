@@ -1,4 +1,3 @@
-/* Оформление методичек в духе методических указаний МГТУ им. Н. Э. Баумана */
 @page { size: A4; }
 html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 body {
@@ -20,7 +19,6 @@ b.term, .term { font-weight: bold; }
 em.imp { font-style: normal; font-weight: bold; }
 .small { font-size: 10.5pt; }
 
-/* титульный лист */
 .title { height: 245mm; display: flex; flex-direction: column; align-items: center; text-align: center;
   break-after: page; }
 .title .org { font-size: 13pt; margin-top: 6mm; line-height: 1.4; }
@@ -32,13 +30,11 @@ em.imp { font-style: normal; font-weight: bold; }
 .annotation { margin-top: 10mm; font-size: 11pt; text-align: justify; }
 .annotation p { text-indent: 1.25cm; }
 
-/* формулы */
 .equation { display: flex; align-items: center; justify-content: center; position: relative;
   margin: 0.45em 0 0.55em; break-inside: avoid; }
 .equation math { display: block; }
 .equation .eqn { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
 
-/* рисунки */
 figure { margin: 0.7em 0 0.9em; text-align: center; break-inside: avoid; }
 figure img { max-width: 100%; }
 figure figcaption { font-size: 11pt; margin-top: 0.3em; text-align: center; }
@@ -47,7 +43,6 @@ figure figcaption b { font-weight: bold; }
 figure.half img { width: 48%; margin: 0 0.8%; }
 figure.third img { width: 31%; margin: 0 0.6%; }
 
-/* таблицы */
 table { border-collapse: collapse; margin: 0.4em auto 0.9em; font-size: 11pt; break-inside: avoid; }
 caption { caption-side: top; text-align: right; font-style: italic; font-size: 11pt; padding-bottom: 2px; }
 caption b { display: block; text-align: center; font-style: normal; font-weight: bold; }
@@ -57,7 +52,6 @@ td.l, th.l { text-align: left; }
 table.blank td { height: 1.35em; }
 table.wide { width: 100%; }
 
-/* код */
 figure.code { text-align: left; margin: 0.6em 0 0.9em; break-inside: auto; }
 figure.code figcaption { text-align: left; font-family: 'Liberation Sans', sans-serif; font-size: 8.5pt;
   color: #4d5a66; margin: 0 0 2px; }
@@ -67,7 +61,6 @@ figure.code pre { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace;
 code, .mono { font-family: 'Liberation Mono', 'DejaVu Sans Mono', monospace; font-size: 0.86em;
   background: #f1f3f5; padding: 0 3px; border-radius: 2px; }
 
-/* врезки */
 .note { border: 1px solid #b8c2cb; background: #f7f9fa; padding: 6px 10px; margin: 0.6em 0 0.8em;
   break-inside: avoid; font-size: 11pt; }
 .note p { text-indent: 0; }

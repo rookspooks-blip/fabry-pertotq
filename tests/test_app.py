@@ -1,5 +1,3 @@
-"""Окно запускается (без экрана), считает, плавно переходит к новым значениям и сохраняет файлы."""
-
 import os
 
 import numpy as np
@@ -8,7 +6,7 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("numpy")
 
-from fabry_perot.qt import QtCore, QtWidgets  # noqa: E402
+from fabry_perot.qt import QtCore, QtWidgets
 
 
 @pytest.fixture(scope="module")
@@ -46,10 +44,10 @@ def test_first_preset_measurements(window):
 def test_typed_value_glides(window):
     row = window.params["d"]
     start = window.shown["d"]
-    row.spin.setValue(10.0)                    # как будто ввели число и нажали Enter
-    assert window.shown["d"] == start          # сразу картинка не прыгает
+    row.spin.setValue(10.0)
+    assert window.shown["d"] == start
     wait(350)
-    assert start < window.shown["d"] < 10.0    # на полпути
+    assert start < window.shown["d"] < 10.0
     wait(900)
     assert window.shown["d"] == 10.0
 
@@ -91,8 +89,8 @@ def test_exports(window, tmp_path):
 def test_fast_step_is_short(window):
     row = window.params["dd"]
     before = window.shown["dd"]
-    row.spin.stepBy(10)                        # как стрелка ↑ в поле ввода
-    wait(300)                                  # короткий переход (0,15 с) уже закончился
+    row.spin.stepBy(10)
+    wait(300)
     assert row.value() > before
     assert window.shown["dd"] == pytest.approx(row.value())
 
@@ -101,25 +99,22 @@ def test_lab_mode_hides_and_records(window, tmp_path):
     from fabry_perot.lab import Variant
     window.journal.clear_all()
     window.set_lab(Variant(5))
-    assert window.params["L"].label.isVisibleTo(window)       # экран можно двигать
-    assert window.params["f"].combo.isVisibleTo(window)       # линза — из набора
+    assert window.params["L"].label.isVisibleTo(window)
+    assert window.params["f"].combo.isVisibleTo(window)
     assert window.params["lam"].hidden and window.params["A"].hidden
-    assert window.pages.currentIndex() == 1                   # справа — только журнал
+    assert window.pages.currentIndex() == 1
     assert window.context()["lam"] is None
-    assert not window.ring_view.show_order                    # порядок кольца не подсказывается
-    # серия «кольца»: правый щелчок по трём радиусам
+    assert not window.ring_view.show_order
     window.journal.select("rings")
     for r in (1.0, 2.0, 3.0):
         window.ring_view.picked.emit(r, 0.5)
     rows = window.journal.data["rings"]
     assert [row["x"] for row in rows] == [1, 2, 3]
     assert rows[1]["y"] == pytest.approx(4.0)
-    # серия «пара точек»: Δλ = |x₂ − x₁|
     window.journal.select("fsr")
     window.plot_t.picked.emit(-10.0, 0.9)
     window.plot_t.picked.emit(30.0, 0.9)
     assert window.journal.data["fsr"][0]["y"] == pytest.approx(40.0)
-    # экспорт в лабораторной не содержит скрытой длины волны
     window.write_csv(str(tmp_path / "lab.csv"))
     text = (tmp_path / "lab.csv").read_text(encoding="utf-8-sig")
     assert "Вариант" in text and str(Variant(5).lam).replace(".", ",") not in text
@@ -129,7 +124,6 @@ def test_lab_mode_hides_and_records(window, tmp_path):
 
 
 def test_screen_out_of_focus_blurs_rings(window):
-    """В лабораторной экран не в фокусе — кольца размыты (контраст меньше), в фокусе — резкие."""
     from fabry_perot.lab import Variant
     window.set_lab(Variant(3))
     f = window.params["f"].value()
@@ -137,7 +131,7 @@ def test_screen_out_of_focus_blurs_rings(window):
     window.shown["L"] = f
     window.recalc()
     rv = window.ring_view
-    rs = np.linspace(5e-3, 9e-3, 20000)               # край экрана: кольца тонкие и частые
+    rs = np.linspace(5e-3, 9e-3, 20000)
     sharp = np.array([rv.brightness(r) for r in rs])
     window.params["L"].set(f + 15)
     window.shown["L"] = f + 15
@@ -145,7 +139,6 @@ def test_screen_out_of_focus_blurs_rings(window):
     blurred = np.array([rv.brightness(r) for r in rs])
     assert blurred.std() < 0.5 * sharp.std()
     window.set_lab(None)
-
 
 
 def test_ring_zoom_and_sum_curve(window):
