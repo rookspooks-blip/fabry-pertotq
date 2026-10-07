@@ -95,7 +95,7 @@ for s in SECTIONS:
             raise SystemExit(f"{label}: не назначен")
         if who in mine:
             mine[who].append(num)
-        chip = f'<span class="who" data-who="{who}">{"все" if who == "Общие" else who}</span>'
+        chip = f'<span class="who" data-who="{who}">{who}</span>'
         q = render(it["q"], qid, label)
         parts = [f'<div class="short"><span class="tag">Коротко</span>{para(it["short"], qid, label)}</div>']
         if it["long"]:
@@ -155,22 +155,20 @@ def qlinks(nums):
     return " ".join(f'<a class="jump" href="#q{n}">В{n}</a>' for n in sorted(nums))
 
 
-common = sorted(owners.COMMON)
 picks = ['<button class="pick" type="button" data-pick="" aria-pressed="true"><b>Все</b>'
          f'<span>{num} вопросов</span></button>']
 plans = []
 for name, (role, qs) in owners.ROLES.items():
     th = len(set(qs) & owners.THEORY)
     picks.append(f'<button class="pick" type="button" data-pick="{name}" aria-pressed="false"><b>{name}</b>'
-                 f'<span>{len(qs)} своих + {len(common)} общих · теория {th}</span></button>')
+                 f'<span>{len(qs)} вопросов · теория {th}</span></button>')
     plans.append(f'<div class="plan" data-plan="{name}" hidden><h3>{name}: {html.escape(role)}</h3>'
                  f'<p><b>Твой кусок доклада.</b> {html.escape(owners.TALK[name])}</p>'
                  f'<p><b>Твои вопросы ({len(qs)}):</b> {qlinks(qs)}</p>'
-                 f'<p><b>Общие — знают все ({len(common)}):</b> {qlinks(common)}</p>'
                  f'<p class="lead">Ниже остались только эти вопросы. Чужие тоже стоит пролистать: если тебя спросят '
                  f'не по твоей части, хотя бы «коротко» должен сказать каждый.</p></div>')
 chooser = (f'<section class="chooser" aria-label="Кто ты"><h2>Кто ты?</h2>'
-           f'<p class="lead">Выбери себя — останутся только твои вопросы и общие. Теория поделена поровну.</p>'
+           f'<p class="lead">Выбери себя — останутся только твои вопросы. Теория поделена поровну.</p>'
            f'<div class="picks">{"".join(picks)}</div>{"".join(plans)}</section>')
 
 CSS = open(os.path.join(HERE, "page.css"), encoding="utf-8").read()

@@ -88,7 +88,7 @@
 
   const find = document.getElementById("find");
   const unknownOnly = document.getElementById("unknown");
-  function mine(c) { return !who || c.dataset.owner === who || c.dataset.owner === "Общие"; }
+  function mine(c) { return !who || c.dataset.owner === who; }
   function filter() {
     const q = find.value.trim().toLowerCase();
     cards.forEach(c => {
