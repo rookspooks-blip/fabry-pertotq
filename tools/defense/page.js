@@ -108,7 +108,15 @@
     });
     document.querySelectorAll(".entry").forEach(e => {
       const hit = !q || e.textContent.toLowerCase().includes(q);
-      if (hit) e.removeAttribute("data-hide"); else e.setAttribute("data-hide", "");
+      const ok = !who || e.dataset.readers.split(" ").includes(who);
+      if (hit && ok) e.removeAttribute("data-hide"); else e.setAttribute("data-hide", "");
+    });
+    document.querySelectorAll("a.use").forEach(a => {
+      if (!who || a.dataset.owner === who) a.removeAttribute("data-hide"); else a.setAttribute("data-hide", "");
+    });
+    document.querySelectorAll("section[data-gl]").forEach(s => {
+      const n = s.querySelectorAll(".entry:not([data-hide])").length;
+      if (n) s.removeAttribute("data-hide"); else s.setAttribute("data-hide", "");
     });
   }
   find.addEventListener("input", filter);

@@ -81,6 +81,7 @@ def para(text, where, label):
 
 num = 0
 toc, body = [], []
+qowner = {}
 mine = {name: [] for name in owners.ROLES}
 for s in SECTIONS:
     toc.append(f'<li data-sec="s-{s["key"]}"><a class="jump" href="#s-{s["key"]}">{html.escape(s["title"])}</a>'
@@ -95,6 +96,7 @@ for s in SECTIONS:
             raise SystemExit(f"{label}: не назначен")
         if who in mine:
             mine[who].append(num)
+        qowner[qid] = who
         chip = f'<span class="who" data-who="{who}">{who}</span>'
         q = render(it["q"], qid, label)
         parts = [f'<div class="short"><span class="tag">Коротко</span>{para(it["short"], qid, label)}</div>']
@@ -111,26 +113,41 @@ for s in SECTIONS:
     body.append(f'<section class="qs" id="s-{s["key"]}" data-sec="s-{s["key"]}"><h2>{html.escape(s["title"])}</h2>'
                 f'<p class="lead">{html.escape(s["lead"])}</p>{"".join(cards)}</section>')
 
+KINDS = (("sym", "Буквы и обозначения", "Что значит каждая буква в формулах."),
+         ("term", "Термины", "Физика, оптика, обработка данных, программирование."),
+         ("func", "Функции программы", "Где в коде считается то, о чём спрашивают."))
+bodies = {e["id"]: render(" ".join(e["body"].split()), e["id"], e["title"], own=e["key"])
+          for e in glossary.ENTRIES}
+
+readers = {e["id"]: {qowner[w] for w, _ in e["uses"] if w.startswith("q")} for e in glossary.ENTRIES}
+changed = True
+while changed:
+    changed = False
+    for e in glossary.ENTRIES:
+        for w, _ in e["uses"]:
+            if w in readers and not readers[w] <= readers[e["id"]]:
+                readers[e["id"]] |= readers[w]
+                changed = True
+
 gl_html = []
-for kind, title, lead in (("sym", "Буквы и обозначения", "Что значит каждая буква в формулах."),
-                          ("term", "Термины", "Физика, оптика, обработка данных, программирование."),
-                          ("func", "Функции программы", "Где в коде считается то, о чём спрашивают.")):
-    items = []
+for kind, title, lead in KINDS:
+    entries = []
     for e in glossary.ENTRIES:
         if e["kind"] != kind:
             continue
-        b = render(" ".join(e["body"].split()), e["id"], e["title"], own=e["key"])
-        items.append((e, b))
-    entries = []
-    for e, b in items:
-        uses = "".join(f'<a class="use jump" href="#{w}">{html.escape(re.sub("<[^>]+>", "", lab))}</a>'
+        uses = "".join(f'<a class="use jump" href="#{w}" data-owner="{qowner[w]}">'
+                       f'{html.escape(re.sub("<[^>]+>", "", lab))}</a>'
                        for w, lab in e["uses"] if w.startswith("q"))
         uses_html = f'<div class="uses"><span>Встречается:</span>{uses}</div>' if uses else ""
-        entries.append(f'<div class="entry {kind}" id="{e["id"]}"><div class="eh"><h4>{e["title"]}</h4>'
+        who = " ".join(sorted(readers[e["id"]]))
+        entries.append(f'<div class="entry {kind}" id="{e["id"]}" data-readers="{who}"><div class="eh"><h4>{e["title"]}</h4>'
                        f'<button class="back" type="button" title="Вернуться туда, откуда пришли">↩ назад</button></div>'
-                       f'<p>{b}</p>{uses_html}</div>')
-    gl_html.append(f'<section class="gl" id="gl-{kind}"><h2>{title}</h2><p class="lead">{lead}</p>'
+                       f'<p>{bodies[e["id"]]}</p>{uses_html}</div>')
+    gl_html.append(f'<section class="gl" id="gl-{kind}" data-gl="{kind}"><h2>{title}</h2><p class="lead">{lead}</p>'
                    f'<div class="entries">{"".join(entries)}</div></section>')
+
+for name in owners.ROLES:
+    print(name, "статей словаря:", sum(name in r for r in readers.values()))
 
 if missing:
     raise SystemExit("Нет в словаре: " + ", ".join(sorted(missing)))
