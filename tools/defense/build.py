@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path.insert(0, HERE)
 
 import glossary  # noqa: E402
+import owners  # noqa: E402
 import q1  # noqa: E402,F401
 import q2  # noqa: E402,F401
 import q3  # noqa: E402,F401
@@ -91,14 +92,21 @@ def para(text, where, label):
 # --- вопросы ---------------------------------------------------------------
 num = 0
 toc, body = [], []
+mine = {name: [] for name in owners.ROLES}          # номера вопросов каждого (без общих)
 for s in SECTIONS:
-    toc.append(f'<li><a class="jump" href="#s-{s["key"]}">{html.escape(s["title"])}</a>'
+    toc.append(f'<li data-sec="s-{s["key"]}"><a class="jump" href="#s-{s["key"]}">{html.escape(s["title"])}</a>'
                f' <span class="cnt">{len(s["items"])}</span></li>')
     cards = []
     for it in s["items"]:
         num += 1
         qid = f"q{num}"
         label = f"В{num}"
+        who = owners.owner(num)
+        if who is None:
+            raise SystemExit(f"{label}: не назначен")
+        if who in mine:
+            mine[who].append(num)
+        chip = f'<span class="who" data-who="{who}">{"все" if who == "Общие" else who}</span>'
         q = render(it["q"], qid, label)
         parts = [f'<div class="short"><span class="tag">Коротко</span>{para(it["short"], qid, label)}</div>']
         if it["long"]:
@@ -106,12 +114,12 @@ for s in SECTIONS:
         if it["more"]:
             parts.append(f'<div class="more"><span class="tag">Если копнут глубже</span>{para(it["more"], qid, label)}</div>')
         cards.append(
-            f'<article class="card" id="{qid}" data-q="{qid}">'
-            f'<header><span class="qn">{label}</span><h3>{q}</h3>'
+            f'<article class="card" id="{qid}" data-q="{qid}" data-owner="{who}">'
+            f'<header><span class="qn">{label}</span><h3>{q}</h3>{chip}'
             f'<button class="known" type="button" data-q="{qid}" aria-pressed="false">Знаю</button></header>'
             f'<button class="reveal" type="button">Показать ответ</button>'
             f'<div class="ans">{"".join(parts)}</div></article>')
-    body.append(f'<section class="qs" id="s-{s["key"]}"><h2>{html.escape(s["title"])}</h2>'
+    body.append(f'<section class="qs" id="s-{s["key"]}" data-sec="s-{s["key"]}"><h2>{html.escape(s["title"])}</h2>'
                 f'<p class="lead">{html.escape(s["lead"])}</p>{"".join(cards)}</section>')
 
 # --- словарь ---------------------------------------------------------------
@@ -155,6 +163,28 @@ NUMBERS = [("λ = 632,8 нм, d = 5 мм, n = 1", "m₀ = 15 802,78; ε = 0,78")
            ("Точность модели / точность студента", "< 0,1 % / 0,2–1 %")]
 numbers = "".join(f"<tr><td>{a}</td><td>{b}</td></tr>" for a, b in NUMBERS)
 
+def qlinks(nums):
+    return " ".join(f'<a class="jump" href="#q{n}">В{n}</a>' for n in sorted(nums))
+
+
+common = sorted(owners.COMMON)
+picks = ['<button class="pick" type="button" data-pick="" aria-pressed="true"><b>Все</b>'
+         f'<span>{num} вопросов</span></button>']
+plans = []
+for name, (role, qs) in owners.ROLES.items():
+    th = len(set(qs) & owners.THEORY)
+    picks.append(f'<button class="pick" type="button" data-pick="{name}" aria-pressed="false"><b>{name}</b>'
+                 f'<span>{len(qs)} своих + {len(common)} общих · теория {th}</span></button>')
+    plans.append(f'<div class="plan" data-plan="{name}" hidden><h3>{name}: {html.escape(role)}</h3>'
+                 f'<p><b>Твой кусок доклада.</b> {html.escape(owners.TALK[name])}</p>'
+                 f'<p><b>Твои вопросы ({len(qs)}):</b> {qlinks(qs)}</p>'
+                 f'<p><b>Общие — знают все ({len(common)}):</b> {qlinks(common)}</p>'
+                 f'<p class="lead">Ниже остались только эти вопросы. Чужие тоже стоит пролистать: если тебя спросят '
+                 f'не по твоей части, хотя бы «коротко» должен сказать каждый.</p></div>')
+chooser = (f'<section class="chooser" aria-label="Кто ты"><h2>Кто ты?</h2>'
+           f'<p class="lead">Выбери себя — останутся только твои вопросы и общие. Теория поделена поровну.</p>'
+           f'<div class="picks">{"".join(picks)}</div>{"".join(plans)}</section>')
+
 CSS = open(os.path.join(HERE, "page.css"), encoding="utf-8").read()
 JS = open(os.path.join(HERE, "page.js"), encoding="utf-8").read()
 
@@ -175,6 +205,7 @@ page = f"""<title>Защита: интерферометр Фабри — Пер
   <p class="intro">Как учить: прочитай раздел целиком, потом включи «Проверь себя» — ответы спрячутся, отвечай вслух и
   открывай для проверки. Отмечай «Знаю» — счётчик покажет, что осталось.</p>
 </header>
+{chooser}
 <div class="bar" role="toolbar" aria-label="Инструменты">
   <input id="find" type="search" placeholder="Найти вопрос или слово…" aria-label="Поиск">
   <label class="sw"><input id="quiz" type="checkbox"> Проверь себя</label>
@@ -201,4 +232,13 @@ page = f"""<title>Защита: интерферометр Фабри — Пер
 out = os.path.join(ROOT, "docs", "defense.html")
 with open(out, "w", encoding="utf-8") as fh:
     fh.write(page)
+# автономная копия для телефона/планшета: без явной кодировки просмотрщики показывают кракозябры
+head, rest = page.split("<div class=\"wrap\">", 1)
+offline = ('<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
+           '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+           f'{head}</head>\n<body>\n<div class="wrap">{rest}</body>\n</html>\n')
+with open(os.path.join(ROOT, "docs", "defense_offline.html"), "w", encoding="utf-8") as fh:
+    fh.write(offline)
+for name in owners.ROLES:
+    print(name, len(mine[name]), "своих, теория", len(set(mine[name]) & owners.THEORY))
 print(out, num, "вопросов,", len(glossary.ENTRIES), "статей словаря,", counter[0], "ссылок")

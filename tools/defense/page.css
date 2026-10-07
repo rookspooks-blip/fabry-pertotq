@@ -48,6 +48,21 @@ p { margin: 0.4em 0; }
 .sw { display: inline-flex; gap: 6px; align-items: center; font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
 .prog { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
 
+/* кто ты */
+.chooser { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-top: 20px; }
+.chooser h2 { font-size: 1.25rem; }
+.picks { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: 8px; }
+.pick { font: inherit; text-align: left; display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+.pick b { font-family: var(--f-display); font-size: 1.1rem; }
+.pick span { font-size: 0.8rem; color: var(--muted); }
+.pick[aria-pressed="true"] { border: 2px solid var(--accent); padding: 9px 11px; background: var(--chip); }
+.plan { margin-top: 14px; }
+.plan h3 { font-size: 1.05rem; margin-bottom: 6px; }
+.plan a.jump { font-family: var(--f-mono); font-size: 0.85rem; margin-right: 2px; }
+.who { font: 500 0.75rem var(--f-body); color: var(--muted); background: var(--chip); border-radius: 999px; padding: 1px 9px; }
+.who[data-who="Общие"] { color: var(--laser); }
+
 /* оглавление */
 .toc { margin-bottom: 28px; }
 .toc h2 { font-size: 1.1rem; }

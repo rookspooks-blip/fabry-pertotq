@@ -6,6 +6,10 @@
   let known = new Set();
   try { known = new Set(JSON.parse(localStorage.getItem(KEY) || "[]")); } catch (e) { known = new Set(); }
 
+  const WHO = "fp-defense-who";
+  let who = "";
+  try { who = localStorage.getItem(WHO) || ""; } catch (e) { who = ""; }
+
   function save() { try { localStorage.setItem(KEY, JSON.stringify([...known])); } catch (e) { /* без памяти */ } }
 
   function flash(el) {
@@ -18,8 +22,8 @@
   function reveal(el) {                              // показать ответ, если он спрятан режимом проверки
     const card = el && el.closest(".card");
     if (card) card.classList.add("shown");
-    const sec = el && el.closest("[data-hide]");
-    if (sec) sec.removeAttribute("data-hide");
+    let sec = el && el.closest("[data-hide]");          // чужой вопрос из словаря: открыть его и раздел
+    while (sec) { sec.removeAttribute("data-hide"); sec = sec.closest("[data-hide]"); }
   }
 
   function go(el, block) {
@@ -60,14 +64,14 @@
   const cards = [...document.querySelectorAll(".card")];
   const prog = document.getElementById("prog");
   function paint() {
-    let n = 0;
+    let n = 0, total = 0;
     cards.forEach(c => {
       const k = known.has(c.dataset.q);
-      if (k) n++;
+      if (mine(c)) { total++; if (k) n++; }
       c.classList.toggle("is-known", k);
       c.querySelector(".known").setAttribute("aria-pressed", k ? "true" : "false");
     });
-    prog.textContent = "Знаю " + n + " из " + cards.length;
+    prog.textContent = (who ? who + ": знаю " : "Знаю ") + n + " из " + total;
   }
   document.querySelectorAll(".known").forEach(b => b.addEventListener("click", function () {
     const q = b.dataset.q;
@@ -88,12 +92,23 @@
   // поиск и «только невыученные»
   const find = document.getElementById("find");
   const unknownOnly = document.getElementById("unknown");
+  function mine(c) { return !who || c.dataset.owner === who || c.dataset.owner === "Общие"; }
   function filter() {
     const q = find.value.trim().toLowerCase();
     cards.forEach(c => {
       const hit = !q || c.textContent.toLowerCase().includes(q);
       const ok = !unknownOnly.checked || !known.has(c.dataset.q);
-      if (hit && ok) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
+      if (hit && ok && mine(c)) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
+    });
+    // разделы без видимых вопросов прячем, в оглавлении — сколько осталось
+    document.querySelectorAll("section[data-sec]").forEach(s => {
+      const n = s.querySelectorAll(".card:not([data-hide])").length;
+      const li = document.querySelector('.toc li[data-sec="' + s.dataset.sec + '"]');
+      if (n) s.removeAttribute("data-hide"); else s.setAttribute("data-hide", "");
+      if (li) {
+        li.querySelector(".cnt").textContent = n;
+        if (n) li.removeAttribute("data-hide"); else li.setAttribute("data-hide", "");
+      }
     });
     document.querySelectorAll(".entry").forEach(e => {
       const hit = !q || e.textContent.toLowerCase().includes(q);
@@ -102,5 +117,16 @@
   }
   find.addEventListener("input", filter);
   unknownOnly.addEventListener("change", filter);
-  paint();
+
+  // кто ты: Артём / Егор / Илья / все
+  function choose(name) {
+    who = name || "";
+    try { localStorage.setItem(WHO, who); } catch (e) { /* без памяти */ }
+    document.querySelectorAll(".pick").forEach(b => b.setAttribute("aria-pressed", b.dataset.pick === who ? "true" : "false"));
+    document.querySelectorAll(".plan").forEach(p => { p.hidden = p.dataset.plan !== who; });
+    document.body.dataset.who = who;
+    paint(); filter();
+  }
+  document.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => choose(b.dataset.pick)));
+  choose(who);
 })();
