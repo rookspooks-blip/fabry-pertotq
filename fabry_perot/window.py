@@ -1,4 +1,6 @@
 import csv
+import json
+import re
 
 import numpy as np
 
@@ -14,6 +16,7 @@ from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_p
                     stylesheet, wavelength_rgb)
 from .widgets import Curve, FitLabel, Plot, RingView, ToggleSwitch, card_title, make_card, polish
 
+WORK_FORMAT = "fabry-perot-work"
 TWEEN_MS = 850
 FAST_MS = 150
 
@@ -116,6 +119,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lab_button.setToolTip("Режим лабораторной: вариант со скрытыми величинами и журнал измерений")
         self.lab_button.clicked.connect(self.toggle_lab)
         row.addWidget(self.lab_button)
+        self.save_work_button = QtWidgets.QPushButton("Сохранить работу")
+        self.save_work_button.setObjectName("ghost")
+        self.save_work_button.setToolTip("Записать вариант, журнал и параметры в файл — продолжить можно на любом компьютере")
+        self.save_work_button.clicked.connect(self.save_work)
+        self.save_work_button.hide()
+        row.addWidget(self.save_work_button)
+        self.open_work_button = QtWidgets.QPushButton("Открыть работу")
+        self.open_work_button.setObjectName("ghost")
+        self.open_work_button.setToolTip("Продолжить работу из файла, сохранённого кнопкой «Сохранить работу»")
+        self.open_work_button.clicked.connect(self.open_work)
+        row.addWidget(self.open_work_button)
         row.addSpacing(6)
         self.header_buttons = []
         for text, slot, tip in (("Снимок PNG", self.save_png, "Ctrl+S — снимок окна"),
@@ -687,6 +701,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.params["L"].set_row_visible(on)
         self.presets_box.setVisible(not on)
         self.unknown_doublet.setVisible(on)
+        self.save_work_button.setVisible(on)
         if not on:
             self.unknown_doublet.setChecked(False)
         for button in self.page_buttons:
@@ -727,6 +742,69 @@ class MainWindow(QtWidgets.QMainWindow):
         s.setValue("lab/name", self.student[0])
         s.setValue("lab/group", self.student[1])
         s.setValue("lab/doublet", self.unknown_doublet.isChecked())
+
+    def save_work(self):
+        who = re.sub(r'[\\/:*?"<>|\s]+', "_", self.student[0]).strip("_")
+        name = "_".join(x for x in (who, f"вариант{self.lab.code}") if x) + ".json"
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Сохранить работу", name, "Работа (*.json)")
+        if path:
+            self.write_work(path)
+
+    def write_work(self, path):
+        if not path.lower().endswith(".json"):
+            path += ".json"
+        data = {"format": WORK_FORMAT, "version": 1, "name": self.student[0], "group": self.student[1],
+                "code": self.lab.code, "doublet": self.unknown_doublet.isChecked(),
+                "second": self.second.isChecked(),
+                "params": {key: row.value() for key, row in self.params.items()},
+                "journal": json.loads(self.journal.to_json())}
+        try:
+            with open(path, "w", encoding="utf-8") as file:
+                json.dump(data, file, ensure_ascii=False, indent=1)
+        except OSError as error:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось сохранить файл:\n{error}")
+            return
+        self.statusBar().showMessage(f"Работа сохранена: {path}", 6000)
+
+    def open_work(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Открыть работу", "", "Работа (*.json)")
+        if not path:
+            return
+        if self.lab is not None and any(self.journal.data.values()):
+            answer = QtWidgets.QMessageBox.question(
+                self, "Открыть работу", "Текущая работа и её журнал будут заменены. Продолжить?")
+            if answer != QtWidgets.QMessageBox.StandardButton.Yes:
+                return
+        self.read_work(path)
+
+    def read_work(self, path):
+        try:
+            with open(path, encoding="utf-8") as file:
+                data = json.load(file)
+            if data.get("format") != WORK_FORMAT or int(data["code"]) not in CODES:
+                raise ValueError("это не файл работы")
+            code = int(data["code"])
+            saved = {k: float(v) for k, v in data.get("params", {}).items() if k in self.params}
+        except (OSError, ValueError, TypeError, KeyError, AttributeError) as error:
+            QtWidgets.QMessageBox.warning(self, "Ошибка", f"Не удалось открыть работу:\n{error}")
+            return False
+        self.student = (str(data.get("name", "")), str(data.get("group", "")))
+        self.journal.clear_all()
+        self.journal.load_json(json.dumps(data.get("journal", {})))
+        self.unknown_doublet.setChecked(bool(data.get("doublet")))
+        self.set_lab(Variant(code))
+        self.applying = True
+        for key, value in saved.items():
+            row = self.params[key]
+            row.set(min(max(value, row.lo), row.hi))
+        self.applying = False
+        for key, row in self.params.items():
+            self.shown[key] = row.value()
+        self.second.setChecked(bool(data.get("second")))
+        self.save_journal()
+        self.recalc()
+        self.statusBar().showMessage(f"Работа открыта: {self.student[0] or 'студент'}, вариант {code}", 6000)
+        return True
 
     def save_journal(self):
         self.settings.setValue("journal", self.journal.to_json())

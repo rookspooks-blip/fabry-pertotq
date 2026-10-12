@@ -123,6 +123,46 @@ def test_lab_mode_hides_and_records(window, tmp_path):
     assert window.params["lam"].label.isVisibleTo(window) and window.pages.currentIndex() == 0
 
 
+def test_save_and_open_work(window, tmp_path):
+    from fabry_perot.lab import Variant
+    window.journal.clear_all()
+    window.student = ("Иванов И. И.", "СМ1-21")
+    window.set_lab(Variant(7))
+    window.params["d"].set(3.0)
+    window.params["f"].set(250.0)
+    window.params["L"].set(270.0)
+    window.second.setChecked(True)
+    window.unknown_doublet.setChecked(True)
+    window.journal.select("rings")
+    for r in (1.0, 2.0):
+        window.ring_view.picked.emit(r, 0.5)
+    path = str(tmp_path / "work.json")
+    window.write_work(path)
+    window.set_lab(None)
+    window.journal.clear_all()
+    window.student = ("", "")
+    window.params["d"].set(5.0)
+    assert window.read_work(path)
+    assert window.lab.code == 7 and window.student == ("Иванов И. И.", "СМ1-21")
+    assert window.params["d"].value() == pytest.approx(3.0) and window.shown["d"] == pytest.approx(3.0)
+    assert window.params["f"].value() == pytest.approx(250.0) and window.params["L"].value() == pytest.approx(270.0)
+    assert window.second.isChecked() and window.unknown_doublet.isChecked()
+    assert [row["x"] for row in window.journal.data["rings"]] == [1, 2]
+    assert window.save_work_button.isVisibleTo(window)
+    window.set_lab(None)
+    assert not window.save_work_button.isVisibleTo(window)
+
+
+def test_open_work_rejects_wrong_file(window, tmp_path, monkeypatch):
+    shown = []
+    monkeypatch.setattr(QtWidgets.QMessageBox, "warning", lambda *args: shown.append(args[2]))
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"hello": 1}', encoding="utf-8")
+    assert not window.read_work(str(bad))
+    assert not window.read_work(str(tmp_path / "missing.json"))
+    assert len(shown) == 2
+
+
 def test_screen_out_of_focus_blurs_rings(window):
     from fabry_perot.lab import Variant
     window.set_lab(Variant(3))
