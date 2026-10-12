@@ -94,7 +94,8 @@
     cards.forEach(c => {
       const hit = !q || c.textContent.toLowerCase().includes(q);
       const ok = !unknownOnly.checked || !known.has(c.dataset.q);
-      if (hit && ok && mine(c)) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
+      const lvOk = !lv || c.dataset.level === lv;
+      if (hit && ok && lvOk && mine(c)) c.removeAttribute("data-hide"); else c.setAttribute("data-hide", "");
     });
 
     document.querySelectorAll("section[data-sec]").forEach(s => {
@@ -121,6 +122,12 @@
   }
   find.addEventListener("input", filter);
   unknownOnly.addEventListener("change", filter);
+  let lv = "";
+  document.querySelectorAll(".lv button").forEach(b => b.addEventListener("click", function () {
+    lv = b.dataset.lv;
+    document.querySelectorAll(".lv button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    filter();
+  }));
 
   function choose(name) {
     who = name || "";

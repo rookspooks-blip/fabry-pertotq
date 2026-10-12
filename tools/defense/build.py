@@ -97,7 +97,9 @@ for s in SECTIONS:
         if who in mine:
             mine[who].append(num)
         qowner[qid] = who
-        chip = f'<span class="who" data-who="{who}">{who}</span>'
+        lv = owners.level(num)
+        chip = (f'<span class="lvl" data-level="{lv}">{owners.LEVELS[lv]}</span>'
+                f'<span class="who" data-who="{who}">{who}</span>')
         q = render(it["q"], qid, label)
         parts = [f'<div class="short"><span class="tag">Коротко</span>{para(it["short"], qid, label)}</div>']
         if it["long"]:
@@ -105,7 +107,7 @@ for s in SECTIONS:
         if it["more"]:
             parts.append(f'<div class="more"><span class="tag">Если копнут глубже</span>{para(it["more"], qid, label)}</div>')
         cards.append(
-            f'<article class="card" id="{qid}" data-q="{qid}" data-owner="{who}">'
+            f'<article class="card" id="{qid}" data-q="{qid}" data-owner="{who}" data-level="{lv}">'
             f'<header><span class="qn">{label}</span><h3>{q}</h3>{chip}'
             f'<button class="known" type="button" data-q="{qid}" aria-pressed="false">Знаю</button></header>'
             f'<button class="reveal" type="button">Показать ответ</button>'
@@ -172,16 +174,25 @@ def qlinks(nums):
     return " ".join(f'<a class="jump" href="#q{n}">В{n}</a>' for n in sorted(nums))
 
 
+def levels(qs):
+    return [(title, [q for q in qs if owners.level(q) == key])
+            for key, title in (("easy", "Лёгкие"), ("mid", "Средние"), ("hard", "Сложные"))]
+
+
 picks = ['<button class="pick" type="button" data-pick="" aria-pressed="true"><b>Все</b>'
          f'<span>{num} вопросов</span></button>']
 plans = []
 for name, (role, qs) in owners.ROLES.items():
     th = len(set(qs) & owners.THEORY)
     picks.append(f'<button class="pick" type="button" data-pick="{name}" aria-pressed="false"><b>{name}</b>'
-                 f'<span>{len(qs)} вопросов · теория {th}</span></button>')
+                 f'<span>{len(qs)} вопросов · теория {th}</span>'
+                 f'<span>{" · ".join(f"{t.lower()} {len(g)}" for t, g in levels(qs))}</span></button>')
     plans.append(f'<div class="plan" data-plan="{name}" hidden><h3>{name}: {html.escape(role)}</h3>'
                  f'<p><b>Твой кусок доклада.</b> {html.escape(owners.TALK[name])}</p>'
-                 f'<p><b>Твои вопросы ({len(qs)}):</b> {qlinks(qs)}</p>'
+                 + "".join(f'<p><b>{title} ({len(group)}):</b> {qlinks(group)}</p>'
+                           for title, group in levels(qs) if group)
+                 + f'<p><b>Как учить.</b> Сначала лёгкие — их спросят почти наверняка, и отвечать надо сразу. Потом '
+                 f'средние. Сложные — в последнюю очередь: по ним достаточно «коротко» и «почему и как».</p>'
                  f'<p class="lead">Ниже остались только эти вопросы. Чужие тоже стоит пролистать: если тебя спросят '
                  f'не по твоей части, хотя бы «коротко» должен сказать каждый.</p></div>')
 chooser = (f'<section class="chooser" aria-label="Кто ты"><h2>Кто ты?</h2>'
@@ -206,13 +217,18 @@ page = f"""<title>Защита: интерферометр Фабри — Пер
   добивающие вопросы. Любая подчёркнутая буква, термин или функция ведёт в словарь; кнопка <b>↩ назад</b> там возвращает
   ровно туда, откуда пришёл.</p>
   <p class="intro">Как учить: прочитай раздел целиком, потом включи «Проверь себя» — ответы спрячутся, отвечай вслух и
-  открывай для проверки. Отмечай «Знаю» — счётчик покажет, что осталось.</p>
+  открывай для проверки. Отмечай «Знаю» — счётчик покажет, что осталось. У каждого вопроса есть сложность:
+  <b>лёгкий</b> — спросят почти наверняка, <b>средний</b> — нужно понимать, <b>сложный</b> — добивающий вопрос
+  комиссии. Кнопки на панели оставляют вопросы одной сложности.</p>
 </header>
 {chooser}
 <div class="bar" role="toolbar" aria-label="Инструменты">
   <input id="find" type="search" placeholder="Найти вопрос или слово…" aria-label="Поиск">
   <label class="sw"><input id="quiz" type="checkbox"> Проверь себя</label>
   <label class="sw"><input id="unknown" type="checkbox"> Только невыученные</label>
+  <div class="lv" role="group" aria-label="Сложность">
+    <button type="button" data-lv="" aria-pressed="true">Все</button><button type="button" data-lv="easy" aria-pressed="false">Лёгкие</button><button type="button" data-lv="mid" aria-pressed="false">Средние</button><button type="button" data-lv="hard" aria-pressed="false">Сложные</button>
+  </div>
   <span class="prog" id="prog"></span>
 </div>
 <nav class="toc" aria-label="Разделы"><h2>Разделы</h2><ol>{"".join(toc)}</ol>
