@@ -90,8 +90,6 @@ QLabel#appSub, QLabel#hint {{ color: {p['muted']}; font-size: 12px; }}
 QLabel#h2 {{ font-size: 16px; font-weight: 700; }}
 QLabel#cardTitle {{ font-size: 11px; font-weight: 700; color: {p['muted']}; }}
 QLabel#limits {{ color: {p['faint']}; font-size: 11px; }}
-QLabel#secret {{ background: {p['raised']}; border: 1px dashed {p['line']}; border-radius: 7px; padding: 3px 8px;
-                color: {p['muted']}; font-style: italic; }}
 QLabel#tileCaption {{ color: {p['muted']}; font-size: 12px; }}
 QLabel#tileValue {{ font-size: 21px; font-weight: 700; }}
 QLabel#tileNote {{ color: {p['muted']}; font-size: 11px; }}

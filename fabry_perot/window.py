@@ -408,9 +408,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def second_toggled(self, *args):
         on = self.second.isChecked()
         secret = self.lab is not None and self.unknown_doublet.isChecked()
-        self.params["dlam"].set_hidden(secret)
-        self.params["dlam"].slider.setEnabled(on and not secret)
-        self.params["dlam"].spin.setEnabled(on)
+        self.params["dlam"].set_row_visible(on and not secret)
         self.unknown_doublet.setEnabled(on)
         if not self.applying:
             self.check_preset(None)
@@ -686,7 +684,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.lab = variant
         on = variant is not None
         for key in ("lam", "A"):
-            self.params[key].set_hidden(on)
+            self.params[key].set_row_visible(not on)
         self.params["f"].use_choices(LENSES if on else None)
         self.params["L"].set_row_visible(on)
         self.presets_box.setVisible(not on)

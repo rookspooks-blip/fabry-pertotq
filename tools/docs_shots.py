@@ -143,7 +143,7 @@ def main():
     marks = []
     r = rect_in(win, win.lab_badge)
     marks.append((1, QPointF(r.left() - 16, r.center().y())))
-    r = rect_in(win, win.params["lam"].secret)
+    r = rect_in(win, win.params["d"].label)
     marks.append((2, QPointF(r.left() - 18, r.center().y())))
     r = rect_in(win, win.params["L"].label)
     marks.append((3, QPointF(r.left() + 250, r.center().y())))

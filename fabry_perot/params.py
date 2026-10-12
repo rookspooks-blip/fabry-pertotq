@@ -88,14 +88,6 @@ class ParamRow:
         grid.addWidget(limits, 2 * row, 1)
         grid.addWidget(self.slider, 2 * row + 1, 0)
         grid.addWidget(self.spin, 2 * row + 1, 1, Qt.AlignmentFlag.AlignRight)
-        self.secret = QtWidgets.QLabel("скрыто")
-        self.secret.setObjectName("secret")
-        self.secret.setFixedWidth(112)
-        self.secret.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.secret.setToolTip("Эту величину нужно определить в лабораторной работе")
-        self.secret.hide()
-        grid.addWidget(self.secret, 2 * row + 1, 1, Qt.AlignmentFlag.AlignRight)
-        self.hidden = False
         self.slider.valueChanged.connect(self.slider_moved)
         self.spin.valueChanged.connect(self.spin_changed)
         self.set(value)
@@ -164,10 +156,8 @@ class ParamRow:
     def set_row_visible(self, visible):
         for w in (self.label, self.limits, self.slider, self.spin):
             w.setVisible(visible)
-        if not visible:
-            self.secret.hide()
-            if self.combo is not None:
-                self.combo.hide()
+        if not visible and self.combo is not None:
+            self.combo.hide()
 
     def use_choices(self, values):
         if values is None:
@@ -192,9 +182,3 @@ class ParamRow:
         self.spin.hide()
         self.combo.show()
         self.limits.setText("набор линз")
-
-    def set_hidden(self, hidden):
-        self.hidden = hidden
-        self.spin.setVisible(not hidden)
-        self.secret.setVisible(hidden)
-        self.slider.setVisible(not hidden)

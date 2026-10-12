@@ -101,7 +101,7 @@ def test_lab_mode_hides_and_records(window, tmp_path):
     window.set_lab(Variant(5))
     assert window.params["L"].label.isVisibleTo(window)
     assert window.params["f"].combo.isVisibleTo(window)
-    assert window.params["lam"].hidden and window.params["A"].hidden
+    assert not window.params["lam"].label.isVisibleTo(window) and not window.params["A"].label.isVisibleTo(window)
     assert window.pages.currentIndex() == 1
     assert window.context()["lam"] is None
     assert not window.ring_view.show_order
@@ -120,7 +120,7 @@ def test_lab_mode_hides_and_records(window, tmp_path):
     assert "Вариант" in text and str(Variant(5).lam).replace(".", ",") not in text
     window.set_lab(None)
     assert not window.params["L"].label.isVisibleTo(window)
-    assert not window.params["lam"].hidden and window.pages.currentIndex() == 0
+    assert window.params["lam"].label.isVisibleTo(window) and window.pages.currentIndex() == 0
 
 
 def test_screen_out_of_focus_blurs_rings(window):
