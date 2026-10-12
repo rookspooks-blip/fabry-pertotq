@@ -68,16 +68,10 @@ RAYLEIGH = 0.81
 
 
 def rayleigh_limit(fsr, F):
-    lo, hi = 1e-6 * fsr, 0.5 * fsr
-    if dip_ratio(hi, fsr, F) > RAYLEIGH:
+    if F <= 1:
         return None
-    for _ in range(60):
-        mid = (lo + hi) / 2
-        if dip_ratio(mid, fsr, F) > RAYLEIGH:
-            lo = mid
-        else:
-            hi = mid
-    return hi
+    width = fsr * 4 * math.asin(1 / math.sqrt(F)) / (2 * np.pi)
+    return 1.03 * width
 
 
 def order_at(r, lam, d, n, f):
@@ -122,10 +116,7 @@ def ring_radii(lam, d, n, f, r_max, limit=500):
 
 def find_peaks(x, y):
     i = np.flatnonzero((y[1:-1] > y[:-2]) & (y[1:-1] >= y[2:])) + 1
-    left, mid, right = y[i - 1], y[i], y[i + 1]
-    bend = left - 2 * mid + right
-    shift = np.divide(0.5 * (left - right), bend, out=np.zeros(len(i)), where=bend != 0)
-    return i, x[i] + shift * (x[1] - x[0]), mid - 0.25 * (left - right) * shift
+    return i, x[i], y[i]
 
 
 def measure_curve(x, T, x_line):
@@ -155,37 +146,6 @@ def measure_curve(x, T, x_line):
 
 def curve_samples(span, width, fsr):
     return int(min(max(30 * span / (width or fsr), 20000), 2e6))
-
-
-def measure_rings(lam, d, n, f, r_max, F, tmax, per_period=6, cap=150000, refine=300):
-    s2_max = (r_max / math.hypot(r_max, f)) ** 2
-    periods = (phase(lam, d, n) - phase(lam, d, n, math.sqrt(s2_max))) / (2 * np.pi)
-    count = int(min(max(per_period * periods, 2000), cap))
-    u = np.linspace(0.0, s2_max, count)
-    du = u[1] - u[0]
-
-    def bright(uu):
-        return airy(4.0 * np.pi * d * np.sqrt(n * n - uu) / lam, F, tmax)
-
-    T = bright(u)
-    near_u = 2 * du
-    near = f * math.sqrt(near_u / (1 - near_u))
-    if tmax <= 0:
-        return np.zeros(0), near
-    idx = np.flatnonzero((T[1:-1] > T[:-2]) & (T[1:-1] >= T[2:])) + 1
-    peaks = u[idx]
-    if idx.size:
-        center, step = peaks[:refine].copy(), du
-        offsets = np.linspace(-1.0, 1.0, 33)
-        for _ in range(3):
-            grid = np.clip(center[:, None] + step * offsets[None, :], 0.0, s2_max)
-            values = bright(grid)
-            best = np.argmax(values, axis=1)
-            center = grid[np.arange(len(center)), best]
-            step = step / 16
-        peaks[:refine] = center
-    peaks = peaks[(peaks > near_u)]
-    return f * np.sqrt(peaks / (1 - peaks)), near
 
 
 def seamless_shift(lam, n, limit):

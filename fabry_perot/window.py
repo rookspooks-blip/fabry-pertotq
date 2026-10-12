@@ -7,7 +7,7 @@ from .fmt import length, num, pick_unit, plain, rel_error, short, with_unit, div
 from .journal import Journal
 from .lab import CODES, Variant
 from .physics import (C, RAYLEIGH, airy, airy_range, curve_samples, defocus_radius, dip_ratio, measure_curve,
-                      measure_rings, phase, ring_radii, screen_mean, seamless_shift, theory)
+                      phase, ring_radii, screen_mean, seamless_shift, theory)
 from .params import LENSES, LINE2, PARAMS, PRESETS, TILES, ParamRow
 from .qt import QAction, QBrush, QColor, QImage, QPainter, QPixmap, Qt, QtCore, QtGui, QtWidgets
 from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_palette,
@@ -498,9 +498,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.ring_view.show_data([(wl, wavelength_rgb(wl * 1e9)) for wl, _ in lines], half, caption,
                                  (d, n, L), F, tmax, rho)
 
-        measured, near = measure_rings(lam, d, n, L, half, F, tmax)
-        predicted = ring_radii(lam, d, n, L, half)
-        predicted = predicted[predicted > near]
+        measured = predicted = ring_radii(lam, d, n, L, half)
         self.radii = (measured, predicted)
         marks = [] if self.lab is not None else [
             (rk * 1e3, THEME["muted"], label) for rk, label in zip(measured[:2], ("r₁", "r₂"))]

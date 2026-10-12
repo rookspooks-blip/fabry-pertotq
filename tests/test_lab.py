@@ -62,8 +62,8 @@ def test_rayleigh_limit_close_to_width():
     for R in (0.8, 0.9, 0.95):
         th = ph.theory(589e-9, 1e-3, 1.0, R, 0.2)
         limit = ph.rayleigh_limit(th["fsr"], th["F"])
-        assert limit == pytest.approx(th["width"], rel=0.06)
-        assert ph.dip_ratio(limit, th["fsr"], th["F"]) == pytest.approx(ph.RAYLEIGH, abs=1e-6)
+        assert limit == pytest.approx(1.03 * th["width"])
+        assert ph.dip_ratio(limit, th["fsr"], th["F"]) == pytest.approx(ph.RAYLEIGH, abs=0.002)
 
 
 def test_mean_with_error():

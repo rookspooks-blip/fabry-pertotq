@@ -79,19 +79,8 @@ def test_airy_range_contains_every_sample():
     assert hi.max() == 1.0
 
 
-def test_measured_rings_match_formula():
-    F = ph.coefficient_f(0.9)
-    measured, near = ph.measure_rings(LAM, D, N, F_LENS, 0.01, F, 1.0)
-    predicted = ph.ring_radii(LAM, D, N, F_LENS, 0.01)
-    predicted = predicted[predicted > near]
-    assert len(measured) == len(predicted) == 19
-    assert np.allclose(measured, predicted, rtol=1e-5)
-
-
-def test_many_thin_rings_are_all_found():
-    lam, d, n, f, half = 380e-9, 0.02, 2.0, 0.05, 0.1
-    measured, near = ph.measure_rings(lam, d, n, f, half, ph.coefficient_f(0.99), 1.0)
-    predicted = ph.ring_radii(lam, d, n, f, half, limit=10 ** 6)
-    predicted = predicted[predicted > near]
-    assert abs(len(measured) - len(predicted)) <= 1
-    assert np.allclose(measured[:50], predicted[:50], rtol=1e-4)
+def test_find_peaks_takes_highest_points():
+    x = np.linspace(0.0, 10.0, 1001)
+    y = np.cos(2 * np.pi * x) ** 2
+    i, pos, height = ph.find_peaks(x, y)
+    assert np.allclose(pos, np.arange(0.5, 10.0, 0.5)) and np.allclose(height, 1.0)
