@@ -183,9 +183,8 @@ picks = ['<button class="pick" type="button" data-pick="" aria-pressed="true"><b
          f'<span>{num} вопросов</span></button>']
 plans = []
 for name, (role, qs) in owners.ROLES.items():
-    th = len(set(qs) & owners.THEORY)
     picks.append(f'<button class="pick" type="button" data-pick="{name}" aria-pressed="false"><b>{name}</b>'
-                 f'<span>{len(qs)} вопросов · теория {th}</span>'
+                 f'<span>{len(qs)} вопросов</span>'
                  f'<span>{" · ".join(f"{t.lower()} {len(g)}" for t, g in levels(qs))}</span></button>')
     plans.append(f'<div class="plan" data-plan="{name}" hidden><h3>{name}: {html.escape(role)}</h3>'
                  f'<p><b>Твой кусок доклада.</b> {html.escape(owners.TALK[name])}</p>'
@@ -196,7 +195,7 @@ for name, (role, qs) in owners.ROLES.items():
                  f'<p class="lead">Ниже остались только эти вопросы. Чужие тоже стоит пролистать: если тебя спросят '
                  f'не по твоей части, хотя бы «коротко» должен сказать каждый.</p></div>')
 chooser = (f'<section class="chooser" aria-label="Кто ты"><h2>Кто ты?</h2>'
-           f'<p class="lead">Выбери себя — останутся только твои вопросы. Теория поделена поровну.</p>'
+           f'<p class="lead">Выбери себя — останутся только твои вопросы. Вопросы разложены по ролям: Артём — физика, Егор — картинка и измерения, Илья — код и лабораторная; объём у всех одинаковый.</p>'
            f'<div class="picks">{"".join(picks)}</div>{"".join(plans)}</section>')
 
 CSS = open(os.path.join(HERE, "page.css"), encoding="utf-8").read()
@@ -258,5 +257,5 @@ offline = ('<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n'
 with open(os.path.join(ROOT, "docs", "defense_offline.html"), "w", encoding="utf-8") as fh:
     fh.write(offline)
 for name in owners.ROLES:
-    print(name, len(mine[name]), "своих, теория", len(set(mine[name]) & owners.THEORY))
+    print(name, len(mine[name]), "вопросов")
 print(out, num, "вопросов,", len(glossary.ENTRIES), "статей словаря,", counter[0], "ссылок")
