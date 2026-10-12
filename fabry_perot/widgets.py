@@ -9,6 +9,22 @@ from .qt import (QColor, QFont, QImage, QPainter, QPen, QPixmap, QPointF, QRectF
 from .theme import THEME
 
 
+class FitLabel(QtWidgets.QLabel):
+    def __init__(self, variants):
+        super().__init__(variants[0])
+        self.variants = variants
+        self.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Preferred)
+        self.setMinimumWidth(1)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        metrics = self.fontMetrics()
+        for text in self.variants:
+            if metrics.horizontalAdvance(text) <= self.width():
+                break
+        self.setText(text)
+
+
 def paint_card(p, rect, color, border=None):
     p.setPen(QColor(border or THEME["border"]))
     p.setBrush(QColor(color))

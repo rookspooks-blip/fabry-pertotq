@@ -12,7 +12,7 @@ from .params import LENSES, LINE2, PARAMS, PRESETS, TILES, ParamRow
 from .qt import QAction, QBrush, QColor, QImage, QPainter, QPixmap, Qt, QtCore, QtGui, QtWidgets
 from .theme import (SCREEN_BG, THEME, app_icon_image, dot_icon, line_color, qt_palette,
                     stylesheet, wavelength_rgb)
-from .widgets import Curve, Plot, RingView, ToggleSwitch, card_title, make_card, polish
+from .widgets import Curve, FitLabel, Plot, RingView, ToggleSwitch, card_title, make_card, polish
 
 TWEEN_MS = 850
 FAST_MS = 150
@@ -99,10 +99,9 @@ class MainWindow(QtWidgets.QMainWindow):
         names.setSpacing(0)
         title = QtWidgets.QLabel(APP_TITLE)
         title.setObjectName("appTitle")
-        sub = QtWidgets.QLabel("интерактивная модель · проект СЭЛФ, МГТУ им. Н. Э. Баумана")
+        sub = FitLabel(["интерактивная модель · проект СЭЛФ, МГТУ им. Н. Э. Баумана",
+                        "проект СЭЛФ, МГТУ им. Н. Э. Баумана", "МГТУ им. Н. Э. Баумана", "МГТУ им. Баумана"])
         sub.setObjectName("appSub")
-        sub.setSizePolicy(QtWidgets.QSizePolicy.Policy.Ignored, QtWidgets.QSizePolicy.Policy.Preferred)
-        sub.setMinimumWidth(1)
         names.addWidget(title)
         names.addWidget(sub)
         row.addSpacing(6)
@@ -690,13 +689,14 @@ class MainWindow(QtWidgets.QMainWindow):
             self.params[key].set_hidden(on)
         self.params["f"].use_choices(LENSES if on else None)
         self.params["L"].set_row_visible(on)
-        self.presets_box.setEnabled(not on)
+        self.presets_box.setVisible(not on)
         self.unknown_doublet.setVisible(on)
         if not on:
             self.unknown_doublet.setChecked(False)
-        self.page_buttons[0].setEnabled(not on)
+        for button in self.page_buttons:
+            button.setVisible(not on)
         self.show_page(1 if on else 0)
-        self.header_buttons[3].setEnabled(not on)
+        self.header_buttons[3].setVisible(not on)
         if on:
             who = ", ".join(x for x in self.student if x) or "студент"
             self.lab_badge.setText(f"Лабораторная · вариант {variant.code}")
